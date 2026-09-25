@@ -1,0 +1,25 @@
+{
+  "project": {
+    "owner": "Trigenys",
+    "title": "Product Identity Development",
+    "bootstrap": true,
+    "template": "appfactory-product",
+    "linkRepository": true,
+    "importOpenIssues": true,
+    "createBoardView": true
+  },
+  "bootstrap": {
+    "boardViewName": "AppFactory Board",
+    "phases": [
+      "Discovery",
+      "Foundation",
+      "Identity Core",
+      "Verification",
+      "Warranty",
+      "Shopify",
+      "Trust & Security",
+      "Growth",
+      "Beta"
+    ]
+  }
+}
