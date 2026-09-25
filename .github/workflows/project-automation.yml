@@ -5,6 +5,11 @@ on:
     types: [opened, reopened, edited, closed]
   pull_request_target:
     types: [opened, reopened, ready_for_review, closed]
+  push:
+    branches: [main]
+    paths:
+      - ".github/project-config.json"
+      - ".github/workflows/project-automation.yml"
   workflow_dispatch:
     inputs:
       issue_number:
