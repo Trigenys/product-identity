@@ -2,16 +2,16 @@
   "$schema": "./appfactory.schema.json",
   "schemaVersion": 2,
   "project": {
-    "name": "Demo Company",
-    "slug": "demo-company",
+    "name": "Product Identity",
+    "slug": "product-identity",
     "language": "en"
   },
   "strategy": {
-    "brief": "A professional landing page demonstrating the AppFactory brief-to-specification pipeline.",
-    "audience": "Teams evaluating automated web delivery",
+    "brief": "Product Identity by Trigenys gives every physical product unit a unique digital identity. Brands can generate serial numbers and QR codes, let customers verify authenticity and register ownership/warranty, and unify product identity across Shopify, Amazon, retail and distributor channels. Initial target: DTC hardware and durable-goods brands selling serialized, warrantied or counterfeit-sensitive products. The product must be self-service, international-first, privacy-aware, secure by default, and designed for later Shopify App Store distribution.",
+    "audience": null,
     "industry": "technology",
     "tone": "professional",
-    "goal": "awareness"
+    "goal": "sales"
   },
   "brand": {
     "tone": "professional",
@@ -32,8 +32,8 @@
     "final-cta"
   ],
   "seo": {
-    "title": "Demo Company — technology built for momentum.",
-    "description": "A professional landing page demonstrating the AppFactory brief-to-specification pipeline."
+    "title": "Product Identity — Product Identity, technology built for momentum.",
+    "description": "Product Identity by Trigenys gives every physical product unit a unique digital identity. Brands can generate serial numbers and QR codes, let customers verify "
   },
   "motion": {
     "level": "subtle",
@@ -42,11 +42,11 @@
   "content": {
     "hero": {
       "eyebrow": "Generated with AppFactory",
-      "title": "Demo Company, technology built for momentum.",
-      "subtitle": "A professional landing page demonstrating the AppFactory brief-to-specification pipeline.",
+      "title": "Product Identity, technology built for momentum.",
+      "subtitle": "Product Identity by Trigenys gives every physical product unit a unique digital identity. Brands can generate serial numbers and QR codes, let customers verify authenticity and register ownership/warranty, and unify product identity across Shopify, Amazon, retail and distributor channels. Initial target: DTC hardware and durable-goods brands selling serialized, warrantied or counterfeit-sensitive products. The product must be self-service, international-first, privacy-aware, secure by default, and designed for later Shopify App Store distribution.",
       "primaryCta": {
-        "label": "Learn more",
-        "href": "#final-cta"
+        "label": "Explore the offer",
+        "href": "#contact"
       },
       "secondaryCta": {
         "label": "Discover more",
@@ -131,11 +131,11 @@
       "items": [
         {
           "question": "Who is this for?",
-          "answer": "It is primarily designed for teams evaluating automated web delivery."
+          "answer": "It is for people and organizations looking for a clear approach to technology."
         },
         {
           "question": "How do I get started?",
-          "answer": "Use the primary action to start the next conversation."
+          "answer": "Use “Explore the offer” to start the next conversation."
         },
         {
           "question": "What happens next?",
@@ -148,24 +148,24 @@
       "title": "Let's talk about what you need.",
       "description": "One first conversation is enough to clarify the context and identify the most useful next step.",
       "cta": {
-        "label": "Learn more",
-        "href": "#final-cta"
+        "label": "Explore the offer",
+        "href": "#contact"
       }
     },
     "finalCta": {
-      "title": "Ready to move forward with Demo Company?",
+      "title": "Ready to move forward with Product Identity?",
       "subtitle": "Take the next step with one clear action.",
-      "label": "Learn more",
-      "href": "#"
+      "label": "Explore the offer",
+      "href": "#contact"
     }
   },
   "hero": {
     "eyebrow": "Generated with AppFactory",
-    "title": "Demo Company, technology built for momentum.",
-    "subtitle": "A professional landing page demonstrating the AppFactory brief-to-specification pipeline.",
+    "title": "Product Identity, technology built for momentum.",
+    "subtitle": "Product Identity by Trigenys gives every physical product unit a unique digital identity. Brands can generate serial numbers and QR codes, let customers verify authenticity and register ownership/warranty, and unify product identity across Shopify, Amazon, retail and distributor channels. Initial target: DTC hardware and durable-goods brands selling serialized, warrantied or counterfeit-sensitive products. The product must be self-service, international-first, privacy-aware, secure by default, and designed for later Shopify App Store distribution.",
     "primaryCta": {
-      "label": "Learn more",
-      "href": "#final-cta"
+      "label": "Explore the offer",
+      "href": "#contact"
     },
     "secondaryCta": {
       "label": "Discover more",
@@ -187,9 +187,9 @@
     }
   ],
   "finalCta": {
-    "title": "Ready to move forward with Demo Company?",
+    "title": "Ready to move forward with Product Identity?",
     "subtitle": "Take the next step with one clear action.",
-    "label": "Learn more",
-    "href": "#"
+    "label": "Explore the offer",
+    "href": "#contact"
   }
 }
