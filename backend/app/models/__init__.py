@@ -10,6 +10,14 @@ from app.models.identity import (
     VerificationEvent,
     VerificationOutcome,
 )
+from app.models.warranty import (
+    ProductRegistration,
+    RegistrationActor,
+    RegistrationAudit,
+    WarrantyPolicy,
+    WarrantyStartRule,
+    WarrantyState,
+)
 
 __all__ = [
     "ImmutableUnitIdentityError",
@@ -17,6 +25,9 @@ __all__ = [
     "MembershipRole",
     "Organization",
     "Product",
+    "ProductRegistration",
+    "RegistrationActor",
+    "RegistrationAudit",
     "SerializationBatch",
     "Unit",
     "UnitImport",
@@ -25,4 +36,7 @@ __all__ = [
     "User",
     "VerificationEvent",
     "VerificationOutcome",
+    "WarrantyPolicy",
+    "WarrantyStartRule",
+    "WarrantyState",
 ]
