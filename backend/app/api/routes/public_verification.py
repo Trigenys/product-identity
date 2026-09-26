@@ -1,7 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.routes.identity import get_token_factory
@@ -50,7 +50,7 @@ def _client_key(request: Request) -> str:
     response_model_exclude_none=True,
 )
 def verify_product(
-    token: Annotated[str, Field(min_length=32, max_length=128)],
+    token: Annotated[str, Path(min_length=32, max_length=128)],
     request: Request,
     session: Annotated[Session, Depends(get_db_session)],
     token_factory: Annotated[VerificationTokenFactory, Depends(get_token_factory)],
