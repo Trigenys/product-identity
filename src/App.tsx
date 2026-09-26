@@ -9,6 +9,7 @@ import {
   TrustSection
 } from './sections/DynamicSections'
 import type { SectionKind } from './types'
+import { VerificationPage } from './verification/VerificationPage'
 
 function renderSection(section: SectionKind) {
   switch (section) {
@@ -35,6 +36,10 @@ function renderSection(section: SectionKind) {
 }
 
 export default function App() {
+  if (window.location.pathname.startsWith('/verify/')) {
+    return <VerificationPage />
+  }
+
   return (
     <main
       className={`site recipe-${manifest.design.recipe} palette-${manifest.brand.palette} typography-${manifest.brand.typography} density-${manifest.design.density} motion-${manifest.motion.level}`}
