@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     auth_algorithm: str = "RS256"
     auth_jwt_key: str = Field(default="")
 
+    verification_token_secret: str = Field(default="")
+
     model_config = SettingsConfigDict(
         env_prefix="PRODUCT_IDENTITY_",
         env_file=".env",
