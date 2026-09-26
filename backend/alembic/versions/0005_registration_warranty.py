@@ -86,6 +86,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("organization_id", sa.Uuid(), nullable=False),
         sa.Column("registration_id", sa.Uuid(), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False),
         sa.Column(
             "actor",
             sa.Enum("CUSTOMER", "MERCHANT", "SYSTEM", name="registration_actor", native_enum=False),
@@ -100,6 +101,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["registration_id"], ["product_registrations.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("registration_id", "version", name="uq_registration_audit_version"),
     )
     op.create_index("ix_registration_audits_organization_id", "registration_audits", ["organization_id"], unique=False)
     op.create_index("ix_registration_audits_registration_id", "registration_audits", ["registration_id"], unique=False)
