@@ -1,4 +1,5 @@
 from app.models.auth import Membership, MembershipRole, Organization, User
+from app.models.authenticity import AuthenticitySignal, AuthenticitySignalState, AuthenticitySignalType, DeviceClass
 from app.models.proof import ProofOfPurchase, ProofReviewState
 from app.models.identity import (
     ImmutableUnitIdentityError,
@@ -21,6 +22,10 @@ from app.models.warranty import (
 )
 
 __all__ = [
+    "AuthenticitySignal",
+    "AuthenticitySignalState",
+    "AuthenticitySignalType",
+    "DeviceClass",
     "ImmutableUnitIdentityError",
     "Membership",
     "MembershipRole",

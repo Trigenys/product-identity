@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -7,8 +7,15 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.auth import Organization
 from app.models.identity import Product, Unit, UnitStatus, VerificationEvent, VerificationOutcome
 from app.models.warranty import ProductRegistration, WarrantyState
+from app.services.authenticity import AuthenticityThresholds, evaluate_authenticity_signals
 from app.services.serialization import VerificationTokenFactory
 from app.services.warranty import warranty_state
+
+
+@dataclass(frozen=True)
+class VerificationContext:
+    country_code: str | None = None
+    device_class: str | None = None
 
 
 @dataclass(frozen=True)
@@ -28,8 +35,13 @@ def verify_public_token(
     *,
     token: str,
     token_factory: VerificationTokenFactory,
+    context: VerificationContext | None = None,
+    thresholds: AuthenticityThresholds | None = None,
 ) -> PublicVerification:
     digest = token_factory.digest(token)
+    event_context = context or VerificationContext()
+    now = datetime.now(timezone.utc)
+
     unit = session.scalar(
         select(Unit)
         .options(selectinload(Unit.product))
@@ -42,6 +54,9 @@ def verify_public_token(
                 unit_id=None,
                 token_digest=digest,
                 outcome=VerificationOutcome.UNKNOWN,
+                country_code=event_context.country_code,
+                device_class=event_context.device_class,
+                created_at=now,
             )
         )
         session.flush()
@@ -82,9 +97,19 @@ def verify_public_token(
             unit_id=unit.id,
             token_digest=digest,
             outcome=outcome,
+            country_code=event_context.country_code,
+            device_class=event_context.device_class,
+            created_at=now,
         )
     )
     session.flush()
+
+    evaluate_authenticity_signals(
+        session,
+        unit=unit,
+        now=now,
+        thresholds=thresholds,
+    )
 
     product: Product = unit.product
     return PublicVerification(

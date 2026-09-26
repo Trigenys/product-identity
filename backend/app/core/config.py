@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     object_storage_access_key_id: str = ""
     object_storage_secret_access_key: str = ""
 
+    verification_repeat_scan_threshold: int = 6
+    verification_repeat_scan_window_minutes: int = 10
+    verification_country_threshold: int = 2
+    verification_country_window_hours: int = 24
+    verification_trust_edge_country: bool = False
+    verification_country_header: str = "cf-ipcountry"
+
     model_config = SettingsConfigDict(
         env_prefix="PRODUCT_IDENTITY_",
         env_file=".env",
