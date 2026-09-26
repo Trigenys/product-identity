@@ -9,16 +9,19 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_jwt_verifier
+from app.api.routes.identity import get_token_factory
 from app.core.config import Settings
 from app.core.security import JWTVerifier
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
 from app.models.auth import Membership, MembershipRole, Organization, User
+from app.services.serialization import VerificationTokenFactory
 
 TEST_KEY = "test-secret-key-at-least-32-bytes-long"
 TEST_ISSUER = "https://issuer.test/"
 TEST_AUDIENCE = "product-identity-api"
+TEST_VERIFICATION_SECRET = "verification-test-secret-at-least-32-bytes-long"
 
 engine = create_engine(
     "sqlite+pysqlite:///:memory:",
@@ -74,6 +77,11 @@ def token() -> str:
 
 
 @pytest.fixture
+def token_factory() -> VerificationTokenFactory:
+    return VerificationTokenFactory(TEST_VERIFICATION_SECRET)
+
+
+@pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     def override_session() -> Generator[Session, None, None]:
         db = TestingSession()
@@ -94,6 +102,7 @@ def client() -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db_session] = override_session
     app.dependency_overrides[get_jwt_verifier] = override_verifier
+    app.dependency_overrides[get_token_factory] = lambda: VerificationTokenFactory(TEST_VERIFICATION_SECRET)
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

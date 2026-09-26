@@ -1,3 +1,20 @@
 from app.models.auth import Membership, MembershipRole, Organization, User
+from app.models.identity import (
+    ImmutableUnitIdentityError,
+    Product,
+    SerializationBatch,
+    Unit,
+    UnitStatus,
+)
 
-__all__ = ["Membership", "MembershipRole", "Organization", "User"]
+__all__ = [
+    "ImmutableUnitIdentityError",
+    "Membership",
+    "MembershipRole",
+    "Organization",
+    "Product",
+    "SerializationBatch",
+    "Unit",
+    "UnitStatus",
+    "User",
+]
