@@ -267,6 +267,7 @@ def test_manual_correction_uses_policy_snapshot_and_writes_audit(
         headers=_auth(token),
     )
     assert audit.status_code == 200
+    assert [item["version"] for item in audit.json()] == [1, 2]
     assert [item["action"] for item in audit.json()] == ["registered", "corrected"]
     assert audit.json()[1]["before"]["customer_name"] == "Original Name"
     assert audit.json()[1]["after"]["customer_name"] == "Corrected Name"
