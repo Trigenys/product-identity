@@ -1,0 +1,87 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.api.routes.identity import get_token_factory
+from app.db.session import get_db_session
+from app.models.identity import VerificationOutcome
+from app.services.rate_limit import (
+    InMemoryFixedWindowRateLimiter,
+    RateLimitExceeded,
+    VerificationRateLimiter,
+)
+from app.services.serialization import VerificationTokenFactory
+from app.services.verification import verify_public_token
+
+router = APIRouter(prefix="/v1/public", tags=["public-verification"])
+
+_default_limiter = InMemoryFixedWindowRateLimiter()
+
+
+class PublicVerificationResponse(BaseModel):
+    state: VerificationOutcome
+    brand_name: str | None
+    product_name: str | None
+    sku: str | None
+    serial: str | None
+    message: str
+
+
+def get_verification_rate_limiter() -> VerificationRateLimiter:
+    return _default_limiter
+
+
+def _client_key(request: Request) -> str:
+    # Used transiently for throttling only. It is deliberately not persisted
+    # in VerificationEvent.
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",", maxsplit=1)[0].strip()
+    if request.client is not None:
+        return request.client.host
+    return "unknown"
+
+
+@router.get(
+    "/verify/{token}",
+    response_model=PublicVerificationResponse,
+    response_model_exclude_none=True,
+)
+def verify_product(
+    token: Annotated[str, Field(min_length=32, max_length=128)],
+    request: Request,
+    session: Annotated[Session, Depends(get_db_session)],
+    token_factory: Annotated[VerificationTokenFactory, Depends(get_token_factory)],
+    limiter: Annotated[VerificationRateLimiter, Depends(get_verification_rate_limiter)],
+) -> PublicVerificationResponse:
+    try:
+        limiter.check(_client_key(request))
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many verification attempts. Please try again shortly.",
+        ) from exc
+
+    result = verify_public_token(
+        session,
+        token=token,
+        token_factory=token_factory,
+    )
+    session.commit()
+
+    messages = {
+        VerificationOutcome.VALID: "This digital product identity is active.",
+        VerificationOutcome.REVOKED: "This digital product identity has been revoked by the issuing brand.",
+        VerificationOutcome.UNKNOWN: "This verification code is not recognized.",
+    }
+
+    return PublicVerificationResponse(
+        state=result.outcome,
+        brand_name=result.brand_name,
+        product_name=result.product_name,
+        sku=result.sku,
+        serial=result.serial,
+        message=messages[result.outcome],
+    )
