@@ -258,6 +258,8 @@ def correct_registration(
         clean_email = customer_email.strip().lower()
         if not clean_email:
             raise ValueError("Customer email cannot be empty")
+        if "@" not in clean_email or clean_email.startswith("@") or clean_email.endswith("@"):
+            raise ValueError("Customer email is invalid")
         registration.customer_email = clean_email
     if purchase_date_supplied:
         registration.purchase_date = purchase_date
