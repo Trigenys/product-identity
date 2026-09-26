@@ -24,7 +24,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS", "PUT"],
-    allow_headers=["Accept", "Content-Type", "Authorization", "Idempotency-Key"],
+    allow_headers=["Accept", "Content-Type", "Authorization", "Idempotency-Key", "X-Proof-Upload-Grant"],
 )
 
 app.include_router(health_router)
