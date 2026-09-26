@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_jwt_verifier
 from app.api.proof_deps import get_object_storage, get_proof_grant_factory
 from app.api.routes.identity import get_token_factory
+from app.api.routes.public_registration import get_registration_rate_limiter
 from app.core.config import Settings
 from app.core.security import JWTVerifier
 from app.db.base import Base
@@ -18,6 +19,7 @@ from app.db.session import get_db_session
 from app.main import app
 from app.models.auth import Membership, MembershipRole, Organization, User
 from app.services.proof import ProofUploadGrantFactory
+from app.services.rate_limit import InMemoryFixedWindowRateLimiter
 from app.services.serialization import VerificationTokenFactory
 from app.services.storage import ObjectStorage
 
@@ -143,8 +145,10 @@ def client() -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db_session] = override_session
     app.dependency_overrides[get_jwt_verifier] = override_verifier
     app.dependency_overrides[get_token_factory] = lambda: VerificationTokenFactory(TEST_VERIFICATION_SECRET)
+    registration_limiter = InMemoryFixedWindowRateLimiter(limit=1000, window_seconds=60)
     app.dependency_overrides[get_proof_grant_factory] = lambda: ProofUploadGrantFactory(TEST_PROOF_SECRET)
     app.dependency_overrides[get_object_storage] = lambda: TEST_STORAGE
+    app.dependency_overrides[get_registration_rate_limiter] = lambda: registration_limiter
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
