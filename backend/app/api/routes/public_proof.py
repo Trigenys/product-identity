@@ -49,6 +49,13 @@ async def upload_purchase_proof(
     grant_factory: Annotated[ProofUploadGrantFactory, Depends(get_proof_grant_factory)],
     storage: Annotated[ObjectStorage, Depends(get_object_storage)],
 ) -> PublicProofResponse:
+    if not grant_factory.verify(registration_id, upload_grant):
+        await file.close()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Proof upload grant is invalid",
+        )
+
     body = await file.read(MAX_PROOF_BYTES + 1)
     if len(body) > MAX_PROOF_BYTES:
         raise HTTPException(
