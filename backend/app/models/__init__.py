@@ -4,6 +4,8 @@ from app.models.identity import (
     Product,
     SerializationBatch,
     Unit,
+    UnitImport,
+    UnitImportStatus,
     UnitStatus,
 )
 
@@ -15,6 +17,8 @@ __all__ = [
     "Product",
     "SerializationBatch",
     "Unit",
+    "UnitImport",
+    "UnitImportStatus",
     "UnitStatus",
     "User",
 ]
