@@ -169,13 +169,12 @@ def create_proof(
     return proof
 
 
-def delete_proof(
+def mark_proof_deleted(
     session: Session,
     *,
-    storage: ObjectStorage,
     organization_id: uuid.UUID,
     registration_id: uuid.UUID,
-) -> ProofOfPurchase:
+) -> tuple[ProofOfPurchase, str]:
     proof = session.scalar(
         select(ProofOfPurchase).where(
             ProofOfPurchase.organization_id == organization_id,
@@ -186,10 +185,10 @@ def delete_proof(
     if proof is None:
         raise ProofNotFound("Purchase proof not found")
 
-    storage.delete(key=proof.object_key)
+    object_key = proof.object_key
     proof.deleted_at = datetime.now(timezone.utc)
     session.flush()
-    return proof
+    return proof, object_key
 
 
 def purge_expired_proofs(
