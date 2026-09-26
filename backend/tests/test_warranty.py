@@ -99,6 +99,7 @@ def test_public_registration_is_idempotent_and_unit_cannot_be_claimed_twice(
     assert first.status_code == 201
     assert replay.status_code == 201
     assert first.json()["registration_id"] == replay.json()["registration_id"]
+    assert first.json()["proof_upload_token"] == replay.json()["proof_upload_token"]
     assert first.json()["replayed"] is False
     assert replay.json()["replayed"] is True
     assert first.json()["warranty_started_on"] == "2026-09-01"

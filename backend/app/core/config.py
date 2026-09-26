@@ -18,6 +18,17 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:5173"
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    proof_upload_secret: str = Field(default="")
+    proof_max_bytes: int = 8 * 1024 * 1024
+    proof_retention_days: int = 730
+    proof_download_ttl_seconds: int = 300
+
+    object_storage_bucket: str = ""
+    object_storage_region: str = "auto"
+    object_storage_endpoint_url: str | None = None
+    object_storage_access_key_id: str = ""
+    object_storage_secret_access_key: str = ""
+
     model_config = SettingsConfigDict(
         env_prefix="PRODUCT_IDENTITY_",
         env_file=".env",
