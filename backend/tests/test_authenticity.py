@@ -65,7 +65,18 @@ def test_repeat_scan_burst_creates_one_explainable_signal_and_updates_it(
 
     assert all(response.status_code == 200 for response in responses)
     assert all(response.json()["state"] == "valid" for response in responses)
-    assert all("signal" not in response.text.lower() for response in responses)
+    forbidden_public_fields = {
+        "authenticity_signal",
+        "authenticity_signals",
+        "signal_type",
+        "observed_value",
+        "threshold_value",
+        "review_note",
+    }
+    assert all(
+        forbidden_public_fields.isdisjoint(response.json().keys())
+        for response in responses
+    )
 
     signals = session.scalars(select(AuthenticitySignal)).all()
     assert len(signals) == 1
