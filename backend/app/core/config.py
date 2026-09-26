@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     verification_token_secret: str = Field(default="")
     public_base_url: str = "http://localhost:5173"
+    cors_origins: list[str] = ["http://localhost:5173"]
 
     model_config = SettingsConfigDict(
         env_prefix="PRODUCT_IDENTITY_",

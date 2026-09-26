@@ -20,6 +20,12 @@ class UnitImportStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class VerificationOutcome(str, enum.Enum):
+    VALID = "valid"
+    REVOKED = "revoked"
+    UNKNOWN = "unknown"
+
+
 class Product(Base):
     __tablename__ = "products"
     __table_args__ = (
@@ -158,6 +164,28 @@ class Unit(Base):
 
     product: Mapped[Product] = relationship(back_populates="units")
     batch: Mapped[SerializationBatch] = relationship(back_populates="units")
+
+
+class VerificationEvent(Base):
+    __tablename__ = "verification_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("units.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    token_digest: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    outcome: Mapped[VerificationOutcome] = mapped_column(
+        Enum(VerificationOutcome, name="verification_outcome", native_enum=False),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
 
 
 class ImmutableUnitIdentityError(ValueError):
