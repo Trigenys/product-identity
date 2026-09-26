@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint, event, func, inspect
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, event, func, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -11,6 +11,13 @@ from app.db.base import Base
 class UnitStatus(str, enum.Enum):
     ACTIVE = "active"
     REVOKED = "revoked"
+
+
+class UnitImportStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class Product(Base):
@@ -34,6 +41,10 @@ class Product(Base):
         cascade="all, delete-orphan",
     )
     units: Mapped[list["Unit"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+    imports: Mapped[list["UnitImport"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan",
     )
@@ -68,6 +79,46 @@ class SerializationBatch(Base):
         cascade="all, delete-orphan",
         order_by="Unit.sequence_number",
     )
+
+
+class UnitImport(Base):
+    __tablename__ = "unit_imports"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "idempotency_key", name="uq_unit_import_organization_idempotency"),
+        UniqueConstraint("batch_id", name="uq_unit_import_batch"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("serialization_batches.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[UnitImportStatus] = mapped_column(
+        Enum(UnitImportStatus, name="unit_import_status", native_enum=False),
+        nullable=False,
+        default=UnitImportStatus.PENDING,
+    )
+    total_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    imported_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rejected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    errors_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    product: Mapped[Product] = relationship(back_populates="imports")
+    batch: Mapped[SerializationBatch | None] = relationship()
 
 
 class Unit(Base):
