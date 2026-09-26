@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models.proof import ProofOfPurchase, ProofReviewState
 from app.models.warranty import ProductRegistration
-from app.services.storage import ObjectStorage
+from app.services.storage import ObjectStorage, ObjectStorageError
 
 ALLOWED_PROOF_TYPES: dict[str, tuple[bytes, str]] = {
     "application/pdf": (b"%PDF-", ".pdf"),
@@ -137,36 +137,43 @@ def create_proof(
         content_type=validated.content_type,
     )
 
-    if existing is None:
-        proof = ProofOfPurchase(
-            organization_id=registration.organization_id,
-            registration_id=registration.id,
-            object_key=object_key,
-            original_filename=validated.original_filename,
-            content_type=validated.content_type,
-            size_bytes=len(validated.body),
-            sha256=validated.sha256,
-            review_state=ProofReviewState.PENDING,
-            retention_until=now + timedelta(days=retention_days),
-            deleted_at=None,
-        )
-        session.add(proof)
-    else:
-        proof = existing
-        proof.object_key = object_key
-        proof.original_filename = validated.original_filename
-        proof.content_type = validated.content_type
-        proof.size_bytes = len(validated.body)
-        proof.sha256 = validated.sha256
-        proof.review_state = ProofReviewState.PENDING
-        proof.reviewer_user_id = None
-        proof.reviewed_at = None
-        proof.uploaded_at = now
-        proof.retention_until = now + timedelta(days=retention_days)
-        proof.deleted_at = None
+    try:
+        if existing is None:
+            proof = ProofOfPurchase(
+                organization_id=registration.organization_id,
+                registration_id=registration.id,
+                object_key=object_key,
+                original_filename=validated.original_filename,
+                content_type=validated.content_type,
+                size_bytes=len(validated.body),
+                sha256=validated.sha256,
+                review_state=ProofReviewState.PENDING,
+                retention_until=now + timedelta(days=retention_days),
+                deleted_at=None,
+            )
+            session.add(proof)
+        else:
+            proof = existing
+            proof.object_key = object_key
+            proof.original_filename = validated.original_filename
+            proof.content_type = validated.content_type
+            proof.size_bytes = len(validated.body)
+            proof.sha256 = validated.sha256
+            proof.review_state = ProofReviewState.PENDING
+            proof.reviewer_user_id = None
+            proof.reviewed_at = None
+            proof.uploaded_at = now
+            proof.retention_until = now + timedelta(days=retention_days)
+            proof.deleted_at = None
 
-    session.flush()
-    return proof
+        session.flush()
+        return proof
+    except Exception:
+        try:
+            storage.delete(key=object_key)
+        except ObjectStorageError:
+            pass
+        raise
 
 
 def mark_proof_deleted(
@@ -209,9 +216,18 @@ def purge_expired_proofs(
         .limit(limit)
     ).all()
 
+    keys = []
     for proof in proofs:
-        storage.delete(key=proof.object_key)
         proof.deleted_at = cutoff
+        keys.append(proof.object_key)
 
     session.flush()
+
+    for key in keys:
+        try:
+            storage.delete(key=key)
+        except ObjectStorageError:
+            # Logical deletion is authoritative; private orphan cleanup can retry later.
+            pass
+
     return len(proofs)
