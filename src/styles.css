@@ -524,3 +524,66 @@ button, input, textarea { font: inherit; }
 .warranty-state-unregistered {
   color: #686f80;
 }
+
+
+.proof-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  padding: 22px;
+  border: 1px solid #e5e8ef;
+  border-radius: 18px;
+  background: #fbfcfe;
+}
+
+.proof-picker {
+  position: relative;
+  min-height: 52px;
+  display: grid;
+  place-items: center;
+  padding: 12px 16px;
+  border: 1px dashed #cbd1dc;
+  border-radius: 14px;
+  background: #fff;
+  color: #596274;
+  font-size: .84rem;
+  font-weight: 750;
+  text-align: center;
+  cursor: pointer;
+}
+
+.proof-picker:focus-within {
+  border-color: #5b5cf0;
+  box-shadow: 0 0 0 4px rgba(91, 92, 240, .10);
+}
+
+.proof-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.proof-form .verification-retry {
+  margin-top: 0;
+}
+
+.proof-form .verification-retry:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.proof-uploaded {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  border-radius: 13px;
+  background: #effaf4;
+  color: #1c6642;
+}
+
+.proof-uploaded span {
+  font-size: .8rem;
+  line-height: 1.45;
+}
