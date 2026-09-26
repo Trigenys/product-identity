@@ -32,7 +32,7 @@ def test_csv_dry_run_reports_bad_rows_without_persisting(
     _, own_org, _ = seeded_user
     product_id = _create_product(client, str(own_org.id), token)
 
-    payload = "serial\nA-001\n\nA-001\nB-002\n"
+    payload = "serial\nA-001\n\"\"\nA-001\nB-002\n"
     response = client.post(
         f"/v1/organizations/{own_org.id}/products/{product_id}/unit-imports?dry_run=true",
         content=payload,
