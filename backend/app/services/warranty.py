@@ -2,7 +2,7 @@ import calendar
 import hashlib
 import json
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
 from sqlalchemy import select
@@ -70,6 +70,8 @@ def _normalize_input(payload: RegistrationInput) -> RegistrationInput:
         raise ValueError("Customer name is required")
     if not email:
         raise ValueError("Customer email is required")
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise ValueError("Customer email is invalid")
     return RegistrationInput(
         customer_name=name,
         customer_email=email,
