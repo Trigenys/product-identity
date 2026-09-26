@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.routes.identity import get_token_factory
 from app.db.session import get_db_session
 from app.models.identity import VerificationOutcome
+from app.models.warranty import WarrantyState
 from app.services.rate_limit import (
     InMemoryFixedWindowRateLimiter,
     RateLimitExceeded,
@@ -26,6 +28,9 @@ class PublicVerificationResponse(BaseModel):
     product_name: str | None
     sku: str | None
     serial: str | None
+    warranty_state: WarrantyState | None
+    warranty_started_on: date | None
+    warranty_expires_on: date | None
     message: str
 
 
@@ -80,5 +85,8 @@ def verify_product(
         product_name=result.product_name,
         sku=result.sku,
         serial=result.serial,
+        warranty_state=result.warranty_state,
+        warranty_started_on=result.warranty_started_on,
+        warranty_expires_on=result.warranty_expires_on,
         message=messages[result.outcome],
     )
