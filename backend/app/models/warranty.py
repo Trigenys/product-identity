@@ -113,6 +113,9 @@ class ProductRegistration(Base):
 
 class RegistrationAudit(Base):
     __tablename__ = "registration_audits"
+    __table_args__ = (
+        UniqueConstraint("registration_id", "version", name="uq_registration_audit_version"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -125,6 +128,7 @@ class RegistrationAudit(Base):
         nullable=False,
         index=True,
     )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
     actor: Mapped[RegistrationActor] = mapped_column(
         Enum(RegistrationActor, name="registration_actor", native_enum=False),
         nullable=False,
