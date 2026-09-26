@@ -170,7 +170,7 @@ def list_registrations(
         session,
         user=user,
         organization_id=organization_id,
-        roles=set(MembershipRole),
+        roles={MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER},
     )
 
     rows = session.execute(
