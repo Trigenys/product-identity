@@ -56,6 +56,7 @@ def test_valid_identity_is_public_and_contains_no_private_fields(
         "product_name": "Reference Headphones",
         "sku": "REF-100",
         "serial": issued["serial"],
+        "warranty_state": "unregistered",
         "message": "This digital product identity is active.",
     }
 
