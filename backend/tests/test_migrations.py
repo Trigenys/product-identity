@@ -21,5 +21,8 @@ def test_migrations_create_fresh_database(tmp_path, monkeypatch) -> None:
         "units",
         "unit_imports",
         "verification_events",
+        "warranty_policies",
+        "product_registrations",
+        "registration_audits",
     }
     assert expected_tables.issubset(set(inspector.get_table_names()))
