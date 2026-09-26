@@ -59,6 +59,7 @@ class RegistrationCorrection(BaseModel):
 
 class RegistrationAuditResponse(BaseModel):
     id: str
+    version: int
     actor: str
     actor_user_id: str | None
     action: str
@@ -266,12 +267,13 @@ def registration_audit(
             RegistrationAudit.registration_id == registration_id,
             RegistrationAudit.organization_id == organization_id,
         )
-        .order_by(RegistrationAudit.created_at, RegistrationAudit.id)
+        .order_by(RegistrationAudit.version)
     ).all()
 
     return [
         RegistrationAuditResponse(
             id=str(item.id),
+            version=item.version,
             actor=item.actor.value,
             actor_user_id=str(item.actor_user_id) if item.actor_user_id else None,
             action=item.action,
