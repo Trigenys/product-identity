@@ -1,4 +1,5 @@
 from app.models.auth import Membership, MembershipRole, Organization, User
+from app.models.proof import ProofOfPurchase, ProofReviewState
 from app.models.identity import (
     ImmutableUnitIdentityError,
     Product,
@@ -26,6 +27,8 @@ __all__ = [
     "Organization",
     "Product",
     "ProductRegistration",
+    "ProofOfPurchase",
+    "ProofReviewState",
     "RegistrationActor",
     "RegistrationAudit",
     "SerializationBatch",
