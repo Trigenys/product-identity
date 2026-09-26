@@ -10,6 +10,7 @@ import {
 } from './sections/DynamicSections'
 import type { SectionKind } from './types'
 import { VerificationPage } from './verification/VerificationPage'
+import { MerchantRegistryPage } from './merchant/MerchantRegistryPage'
 
 function renderSection(section: SectionKind) {
   switch (section) {
@@ -38,6 +39,10 @@ function renderSection(section: SectionKind) {
 export default function App() {
   if (window.location.pathname.startsWith('/verify/')) {
     return <VerificationPage />
+  }
+
+  if (window.location.pathname === '/app' || window.location.pathname.startsWith('/app/')) {
+    return <MerchantRegistryPage />
   }
 
   return (
