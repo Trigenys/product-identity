@@ -36,9 +36,6 @@ def get_verification_rate_limiter() -> VerificationRateLimiter:
 def _client_key(request: Request) -> str:
     # Used transiently for throttling only. It is deliberately not persisted
     # in VerificationEvent.
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",", maxsplit=1)[0].strip()
     if request.client is not None:
         return request.client.host
     return "unknown"
@@ -50,7 +47,7 @@ def _client_key(request: Request) -> str:
     response_model_exclude_none=True,
 )
 def verify_product(
-    token: Annotated[str, Path(min_length=32, max_length=128)],
+    token: Annotated[str, Path(min_length=32, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")],
     request: Request,
     session: Annotated[Session, Depends(get_db_session)],
     token_factory: Annotated[VerificationTokenFactory, Depends(get_token_factory)],
