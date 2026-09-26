@@ -1,11 +1,14 @@
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.auth import Organization
 from app.models.identity import Product, Unit, UnitStatus, VerificationEvent, VerificationOutcome
+from app.models.warranty import ProductRegistration, WarrantyState
 from app.services.serialization import VerificationTokenFactory
+from app.services.warranty import warranty_state
 
 
 @dataclass(frozen=True)
@@ -15,6 +18,9 @@ class PublicVerification:
     product_name: str | None
     sku: str | None
     serial: str | None
+    warranty_state: WarrantyState | None
+    warranty_started_on: date | None
+    warranty_expires_on: date | None
 
 
 def verify_public_token(
@@ -26,9 +32,7 @@ def verify_public_token(
     digest = token_factory.digest(token)
     unit = session.scalar(
         select(Unit)
-        .options(
-            selectinload(Unit.product),
-        )
+        .options(selectinload(Unit.product))
         .where(Unit.verification_token_digest == digest)
     )
 
@@ -47,6 +51,9 @@ def verify_public_token(
             product_name=None,
             sku=None,
             serial=None,
+            warranty_state=None,
+            warranty_started_on=None,
+            warranty_expires_on=None,
         )
 
     organization = session.scalar(
@@ -57,6 +64,18 @@ def verify_public_token(
         if unit.status == UnitStatus.REVOKED
         else VerificationOutcome.VALID
     )
+
+    registration = session.scalar(
+        select(ProductRegistration).where(ProductRegistration.unit_id == unit.id)
+    )
+    if registration is None:
+        public_warranty_state = WarrantyState.UNREGISTERED
+        warranty_started_on = None
+        warranty_expires_on = None
+    else:
+        public_warranty_state = warranty_state(registration)
+        warranty_started_on = registration.warranty_started_on
+        warranty_expires_on = registration.warranty_expires_on
 
     session.add(
         VerificationEvent(
@@ -74,4 +93,7 @@ def verify_public_token(
         product_name=product.name,
         sku=product.sku,
         serial=unit.serial,
+        warranty_state=public_warranty_state,
+        warranty_started_on=warranty_started_on,
+        warranty_expires_on=warranty_expires_on,
     )
