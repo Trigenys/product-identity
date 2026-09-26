@@ -1,6 +1,8 @@
 import csv
 import html
 import io
+import json
+import re
 import uuid
 from typing import Annotated
 
@@ -205,7 +207,7 @@ def import_status(
 
     errors = [
         RowError(**item)
-        for item in __import__("json").loads(job.errors_json or "[]")
+        for item in json.loads(job.errors_json or "[]")
     ]
     return UnitImportStatusResponse(
         id=str(job.id),
@@ -258,7 +260,8 @@ def export_units_csv(
             ]
         )
 
-    filename = f"{product.sku}-units.csv"
+    safe_sku = re.sub(r"[^A-Za-z0-9._-]+", "-", product.sku).strip("-")[:80] or "product"
+    filename = f"{safe_sku}-units.csv"
     return Response(
         content=output.getvalue(),
         media_type="text/csv; charset=utf-8",
