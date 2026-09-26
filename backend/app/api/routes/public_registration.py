@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.proof_deps import get_proof_grant_factory
 from app.api.routes.identity import get_token_factory
 from app.api.routes.public_verification import _client_key
 from app.db.session import get_db_session
+from app.services.proof import ProofUploadGrantFactory
 from app.services.rate_limit import (
     InMemoryFixedWindowRateLimiter,
     RateLimitExceeded,
@@ -38,6 +40,7 @@ class PublicRegistrationCreate(BaseModel):
 
 class PublicRegistrationResponse(BaseModel):
     registration_id: str
+    proof_upload_token: str
     replayed: bool
     warranty_state: str
     warranty_started_on: date
@@ -64,6 +67,7 @@ def register_product(
     ],
     session: Annotated[Session, Depends(get_db_session)],
     token_factory: Annotated[VerificationTokenFactory, Depends(get_token_factory)],
+    proof_grant_factory: Annotated[ProofUploadGrantFactory, Depends(get_proof_grant_factory)],
     limiter: Annotated[VerificationRateLimiter, Depends(get_registration_rate_limiter)],
 ) -> PublicRegistrationResponse:
     try:
@@ -109,6 +113,7 @@ def register_product(
     registration = result.registration
     return PublicRegistrationResponse(
         registration_id=str(registration.id),
+        proof_upload_token=proof_grant_factory.token_for_registration(registration.id),
         replayed=result.replayed,
         warranty_state=warranty_state(registration).value,
         warranty_started_on=registration.warranty_started_on,
