@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 type UnitStatus = 'active' | 'revoked'
 type WarrantyState = 'active' | 'expired' | 'unregistered'
@@ -138,7 +138,7 @@ function StatusBadge({
   children,
 }: {
   tone: 'good' | 'warn' | 'neutral' | 'danger'
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return <span className={`registry-badge registry-badge-${tone}`}>{children}</span>
 }
