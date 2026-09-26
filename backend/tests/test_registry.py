@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
@@ -143,7 +144,7 @@ def test_registry_search_and_filters_are_tenant_scoped(
         key="registry-registration",
     )
 
-    camera_unit = session.get(Unit, camera["id"])
+    camera_unit = session.get(Unit, uuid.UUID(camera["id"]))
     assert camera_unit is not None
     camera_unit.status = UnitStatus.REVOKED
     session.commit()
@@ -187,7 +188,7 @@ def test_registry_search_and_filters_are_tenant_scoped(
     )
     assert cross_tenant.status_code == 403
 
-    registration = session.get(ProductRegistration, registration_id)
+    registration = session.get(ProductRegistration, uuid.UUID(registration_id))
     assert registration is not None
 
 
@@ -235,7 +236,7 @@ def test_registry_warranty_filter_is_applied_before_pagination(
         key="expired-registration",
     )
 
-    expired_row = session.get(ProductRegistration, expired_registration)
+    expired_row = session.get(ProductRegistration, uuid.UUID(expired_registration))
     assert expired_row is not None
     expired_row.warranty_started_on = date.today() - timedelta(days=400)
     expired_row.warranty_expires_on = date.today() - timedelta(days=35)
@@ -257,7 +258,7 @@ def test_registry_warranty_filter_is_applied_before_pagination(
     assert expired_response.json()["total"] == 1
     assert expired_response.json()["units"][0]["id"] == expired["id"]
 
-    assert session.get(ProductRegistration, active_registration) is not None
+    assert session.get(ProductRegistration, uuid.UUID(active_registration)) is not None
 
 
 def test_unit_detail_timeline_separates_facts_from_derived_signals(
