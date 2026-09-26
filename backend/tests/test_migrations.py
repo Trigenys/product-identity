@@ -12,4 +12,13 @@ def test_migrations_create_fresh_database(tmp_path, monkeypatch) -> None:
     command.upgrade(config, "head")
 
     inspector = inspect(create_engine(database_url))
-    assert {"users", "organizations", "memberships"}.issubset(set(inspector.get_table_names()))
+    expected_tables = {
+        "users",
+        "organizations",
+        "memberships",
+        "products",
+        "serialization_batches",
+        "units",
+        "unit_imports",
+    }
+    assert expected_tables.issubset(set(inspector.get_table_names()))
