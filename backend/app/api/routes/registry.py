@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -241,6 +241,29 @@ def list_registry_units(
         base = base.where(ProductRegistration.id.is_(None))
         count_query = count_query.where(ProductRegistration.id.is_(None))
 
+    today = date.today()
+    if warranty == "unregistered":
+        base = base.where(ProductRegistration.id.is_(None))
+        count_query = count_query.where(ProductRegistration.id.is_(None))
+    elif warranty == "active":
+        warranty_predicate = (
+            ProductRegistration.id.is_not(None)
+            & (ProductRegistration.warranty_started_on <= today)
+            & (ProductRegistration.warranty_expires_on >= today)
+        )
+        base = base.where(warranty_predicate)
+        count_query = count_query.where(warranty_predicate)
+    elif warranty == "expired":
+        warranty_predicate = (
+            ProductRegistration.id.is_not(None)
+            & (
+                (ProductRegistration.warranty_expires_on < today)
+                | (ProductRegistration.warranty_started_on > today)
+            )
+        )
+        base = base.where(warranty_predicate)
+        count_query = count_query.where(warranty_predicate)
+
     rows = session.execute(
         base.order_by(Unit.created_at.desc(), Unit.id.desc()).offset(offset).limit(limit)
     ).all()
@@ -248,8 +271,6 @@ def list_registry_units(
     items: list[RegistryUnitItem] = []
     for unit, product, registered, verification_count, open_signal_count in rows:
         state = warranty_state(registered).value if registered is not None else "unregistered"
-        if warranty is not None and state != warranty:
-            continue
 
         items.append(
             RegistryUnitItem(
@@ -272,13 +293,7 @@ def list_registry_units(
             )
         )
 
-    # Warranty state is date-derived, so the MVP applies this filter after the
-    # tenant-scoped database query. Other filters remain database-scoped.
-    total = (
-        len(items)
-        if warranty is not None
-        else int(session.scalar(count_query) or 0)
-    )
+    total = int(session.scalar(count_query) or 0)
 
     return RegistryListResponse(
         summary=_summary(session, organization_id),
