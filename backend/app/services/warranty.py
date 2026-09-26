@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.identity import Unit, UnitStatus
@@ -204,6 +204,7 @@ def register_unit(
         RegistrationAudit(
             organization_id=registration.organization_id,
             registration_id=registration.id,
+            version=1,
             actor=RegistrationActor.CUSTOMER,
             actor_user_id=None,
             action="registered",
@@ -282,10 +283,19 @@ def correct_registration(
     session.flush()
 
     after = _snapshot(registration)
+    next_version = (
+        session.scalar(
+            select(func.coalesce(func.max(RegistrationAudit.version), 0)).where(
+                RegistrationAudit.registration_id == registration.id
+            )
+        )
+        or 0
+    ) + 1
     session.add(
         RegistrationAudit(
             organization_id=organization_id,
             registration_id=registration.id,
+            version=next_version,
             actor=RegistrationActor.MERCHANT,
             actor_user_id=actor_user_id,
             action="corrected",
