@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 type VerificationState = 'loading' | 'valid' | 'revoked' | 'unknown' | 'error'
 type WarrantyState = 'unregistered' | 'active' | 'expired'
 type RegistrationState = 'idle' | 'submitting' | 'success' | 'error'
+type ProofState = 'idle' | 'uploading' | 'success' | 'error'
 
 interface VerificationPayload {
   state: 'valid' | 'revoked' | 'unknown'
@@ -18,6 +19,7 @@ interface VerificationPayload {
 
 interface RegistrationPayload {
   registration_id: string
+  proof_upload_token: string
   replayed: boolean
   warranty_state: WarrantyState
   warranty_started_on: string
@@ -32,6 +34,26 @@ function extractToken() {
 
 function apiBaseUrl() {
   return (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+}
+
+interface ProofSession {
+  registrationId: string
+  uploadToken: string
+}
+
+function proofSessionKey(token: string) {
+  return `product-identity:proof:${token}`
+}
+
+function readProofSession(token: string | null): ProofSession | null {
+  if (!token) return null
+  const raw = window.sessionStorage.getItem(proofSessionKey(token))
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as ProofSession
+  } catch {
+    return null
+  }
 }
 
 function registrationKey(token: string) {
@@ -53,6 +75,10 @@ export function VerificationPage() {
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
   const [purchaseDate, setPurchaseDate] = useState('')
+  const [proofSession, setProofSession] = useState<ProofSession | null>(() => readProofSession(token))
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofState, setProofState] = useState<ProofState>('idle')
+  const [proofError, setProofError] = useState('')
 
   useEffect(() => {
     if (!token) {
@@ -129,12 +155,69 @@ export function VerificationPage() {
             }
           : current,
       )
+      const nextProofSession = {
+        registrationId: registered.registration_id,
+        uploadToken: registered.proof_upload_token,
+      }
+      window.sessionStorage.setItem(proofSessionKey(token), JSON.stringify(nextProofSession))
+      setProofSession(nextProofSession)
       setRegistrationState('success')
     } catch (error: unknown) {
       setRegistrationError(
         error instanceof Error ? error.message : 'Registration could not be completed.',
       )
       setRegistrationState('error')
+    }
+  }
+
+  async function submitProof(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!proofSession || !proofFile || proofState === 'uploading') return
+
+    if (proofFile.size > 8 * 1024 * 1024) {
+      setProofState('error')
+      setProofError('The proof file must be 8 MB or smaller.')
+      return
+    }
+
+    const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+    if (!allowed.has(proofFile.type)) {
+      setProofState('error')
+      setProofError('Use a PDF, JPEG or PNG file.')
+      return
+    }
+
+    setProofState('uploading')
+    setProofError('')
+
+    const form = new FormData()
+    form.append('file', proofFile)
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl()}/v1/public/registrations/${encodeURIComponent(proofSession.registrationId)}/proof`,
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'X-Proof-Upload-Grant': proofSession.uploadToken,
+          },
+          body: form,
+        },
+      )
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { detail?: string } | null
+        throw new Error(body?.detail ?? 'Proof upload could not be completed.')
+      }
+
+      setProofState('success')
+      setProofFile(null)
+    } catch (error: unknown) {
+      setProofState('error')
+      setProofError(
+        error instanceof Error ? error.message : 'Proof upload could not be completed.',
+      )
     }
   }
 
@@ -306,6 +389,56 @@ export function VerificationPage() {
                 : 'Your registration has been recorded.'}
             </span>
           </div>
+        )}
+
+        {state === 'valid' && payload?.warranty_state !== 'unregistered' && proofSession && (
+          <form className="proof-form" onSubmit={submitProof}>
+            <div className="registration-heading">
+              <p className="verification-eyebrow">Purchase evidence</p>
+              <h2>Add your receipt.</h2>
+              <p>
+                Optional. The file is stored privately and is only available to authorized staff at
+                the issuing brand.
+              </p>
+            </div>
+
+            <label className="proof-picker">
+              <span>{proofFile ? proofFile.name : 'Choose PDF, JPEG or PNG'}</span>
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                disabled={proofState === 'uploading' || proofState === 'success'}
+                onChange={(event) => {
+                  setProofFile(event.target.files?.[0] ?? null)
+                  setProofState('idle')
+                  setProofError('')
+                }}
+              />
+            </label>
+
+            {proofState === 'error' && (
+              <p className="registration-error" role="alert">{proofError}</p>
+            )}
+
+            {proofState === 'success' ? (
+              <div className="proof-uploaded">
+                <strong>Receipt stored privately.</strong>
+                <span>The issuing brand can review it when needed.</span>
+              </div>
+            ) : (
+              <button
+                className="verification-retry"
+                type="submit"
+                disabled={!proofFile || proofState === 'uploading'}
+              >
+                {proofState === 'uploading' ? 'Uploading…' : 'Upload receipt'}
+              </button>
+            )}
+
+            <small className="registration-privacy">
+              Maximum 8 MB. This document is never shown on the public verification page.
+            </small>
+          </form>
         )}
 
         <aside className="verification-note">
