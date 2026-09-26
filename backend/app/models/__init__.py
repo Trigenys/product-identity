@@ -7,6 +7,8 @@ from app.models.identity import (
     UnitImport,
     UnitImportStatus,
     UnitStatus,
+    VerificationEvent,
+    VerificationOutcome,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "UnitImportStatus",
     "UnitStatus",
     "User",
+    "VerificationEvent",
+    "VerificationOutcome",
 ]
