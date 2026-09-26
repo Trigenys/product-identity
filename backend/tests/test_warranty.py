@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 
 from fastapi.testclient import TestClient
@@ -257,7 +258,7 @@ def test_manual_correction_uses_policy_snapshot_and_writes_audit(
     assert body["warranty_started_on"] == "2026-02-28"
     assert body["warranty_expires_on"] == "2027-02-28"
 
-    registration = session.get(ProductRegistration, registration_id)
+    registration = session.get(ProductRegistration, uuid.UUID(registration_id))
     assert registration is not None
     assert registration.policy_duration_months == 12
 
