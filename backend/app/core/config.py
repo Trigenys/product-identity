@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     auth_jwt_key: str = Field(default="")
 
     verification_token_secret: str = Field(default="")
+    public_base_url: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(
         env_prefix="PRODUCT_IDENTITY_",
