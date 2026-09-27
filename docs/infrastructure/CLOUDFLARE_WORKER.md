@@ -2,136 +2,152 @@
 
 Issue: #38
 
-Product Identity keeps the existing FastAPI application and adds Cloudflare Python Workers as a deployment target. The web UI remains on Cloudflare Pages.
+Product Identity keeps the existing FastAPI application and adds Cloudflare Python Workers as a deployment target. The React/Vite UI remains on Cloudflare Pages.
 
 ## Runtime topology
 
 ```text
-Cloudflare Pages (React/Vite)
-          |
-          | VITE_API_BASE_URL
-          v
-Cloudflare Python Worker (FastAPI)
-          |
-          | HYPERDRIVE binding
-          v
-Cloudflare Hyperdrive
-          |
-          v
+Trigenys/product-identity
+        |
+        | GitHub Actions OIDC
+        v
+AppFactory API
+        |
+        | existing Cloudflare account credentials
+        v
+Cloudflare Workers Builds
+        |
+        v
+product-identity-api Worker
+        |
+        | HYPERDRIVE (next database step)
+        v
 PostgreSQL / Neon
 ```
 
-Shopify points its application URL, OAuth callback and webhook subscriptions at the Worker.
+Shopify uses the Worker URL for OAuth callbacks and webhooks.
 
-## Why the Worker adapter is isolated
+## Credential ownership
 
-The normal Python server runtime remains valid. Cloudflare-specific binding access lives in `app/core/runtime.py` and the Worker entry point lives in `worker.py`.
+Product Identity does **not** receive or store:
+- `CLOUDFLARE_API_TOKEN`;
+- `CLOUDFLARE_ACCOUNT_ID`;
+- a Cloudflare Workers Builds token.
 
-This prevents Cloudflare from leaking into the domain model or API contracts.
+Those credentials remain owned by the existing `appfactory-api` Worker.
 
-## Database safety
+Product Identity keeps only its product-specific credentials in GitHub:
+- repository variable `SHOPIFY_CLIENT_ID`;
+- repository secret `SHOPIFY_CLIENT_SECRET`;
+- repository secret `SHOPIFY_APP_AUTOMATION_TOKEN`;
+- optional `SHOPIFY_PREVIOUS_CLIENT_SECRET` during rotation;
+- optional production auth key.
 
-Cloudflare Hyperdrive owns connection pooling.
+## OIDC boundary
 
-The Worker SQLAlchemy engine therefore uses `NullPool`; SQLAlchemy does not retain database connections between Worker request contexts.
+The only production infrastructure workflow is:
 
-The current ORM is synchronous. The Worker entry point serializes FastAPI request handling with an asyncio lock because Cloudflare currently supports synchronous SQLAlchemy but recommends serializing synchronous DB operations.
+`.github/workflows/appfactory-infrastructure.yml`
 
-This is an MVP correctness tradeoff, not a high-throughput architecture. We can remove the global request lock when the runtime supports an async SQLAlchemy path compatible with Workers.
+It requests a short-lived GitHub Actions OIDC token with audience `appfactory-api` and calls:
 
-## Shopify outbound HTTP
+`POST https://appfactory-api.lawrynnjennifer.workers.dev/infrastructure/worker`
 
-The Shopify HTTP adapter uses `httpx.AsyncClient`. Python Workers support async HTTP clients; the previous synchronous `httpx.post` path was removed before deployment.
+AppFactory validates:
+- GitHub's token signature;
+- organization ownership;
+- `refs/heads/main`;
+- the exact workflow identity;
+- that the caller can provision only its own repository.
 
-## CI compatibility gate
+The repository never receives the Cloudflare token.
 
-Every PR compiles the complete Worker bundle with Pywrangler using `--dry-run`.
+## Worker ownership and brownfield safety
 
-This catches:
-- unavailable Pyodide/PyEmscripten wheels;
-- Python Worker dependency conflicts;
-- invalid Worker configuration;
-- Worker packaging regressions.
+AppFactory derives the Worker name from the repository:
 
-The first gate found that our old `cryptography<47` pin was incompatible with the current Worker runtime. The dependency is now pinned to `cryptography>=47,<48`.
+`product-identity -> product-identity-api`
 
-## Production automation
+The first successful claim writes:
 
-`.github/workflows/deploy-cloudflare-worker.yml` runs after relevant changes reach `main`.
+`.appfactory/worker-infrastructure.json`
 
-It:
-1. checks required deployment credentials;
-2. migrates PostgreSQL with Alembic;
-3. creates or reuses `product-identity-postgres` Hyperdrive;
-4. discovers the account's `workers.dev` subdomain;
-5. discovers the Product Identity Pages project;
-6. sets Pages `VITE_API_BASE_URL` to the Worker URL;
-7. renders `wrangler.production.toml`;
-8. bootstraps stable Worker-only signing/encryption secrets if they do not already exist;
-9. deploys the Python Worker;
-10. checks `/health`;
-11. deploys the Shopify app configuration with the real Worker URL.
+If a Worker with that name already exists without the AppFactory marker, provisioning fails instead of silently adopting or replacing it.
 
-The workflow refuses to replace an existing Hyperdrive if its visible host/database/user differ from the supplied Neon origin.
+## Workers Builds
 
-## GitHub configuration required once
+AppFactory creates/reuses:
+- the Cloudflare Worker;
+- the GitHub repository connection;
+- the existing Workers Builds deployment token;
+- a production trigger rooted at `/backend`.
 
-Repository secrets:
-- `CLOUDFLARE_API_TOKEN`
-- `NEON_DATABASE_URL` — direct, non-pooled Neon URL
-- `SHOPIFY_CLIENT_SECRET`
-- `SHOPIFY_APP_AUTOMATION_TOKEN` (already configured)
+The reviewed Python Worker recipe performs a Pywrangler dry run before deployment and deploys with `--keep-vars`.
 
-Repository variables:
-- `CLOUDFLARE_ACCOUNT_ID`
-- `SHOPIFY_CLIENT_ID` (already configured)
+The repository's normal CI also performs a Pywrangler dry-run, so Worker package compatibility is checked independently of Cloudflare deployment.
 
-Optional:
-- variable `CLOUDFLARE_PAGES_PROJECT` (defaults to `product-identity`)
-- variable `PRODUCT_IDENTITY_WEB_URL` to override Pages discovery
-- secret `SHOPIFY_PREVIOUS_CLIENT_SECRET` during Shopify secret rotation
-- secret `PRODUCT_IDENTITY_AUTH_JWT_KEY` when the production OIDC provider is configured
+## Runtime secrets
 
-### Cloudflare API token permissions
+The OIDC request sends product-specific values directly to AppFactory over HTTPS. AppFactory writes them to the Product Identity Worker through the Cloudflare secret API and never returns the values.
 
-Scope the token to the Trigenys Cloudflare account and grant only:
-- Workers Scripts: Edit;
-- Hyperdrive: Edit;
-- Cloudflare Pages: Edit.
-
-Pages Edit is needed because the deploy pipeline writes the non-secret `VITE_API_BASE_URL` build variable.
-
-## Neon connection string
-
-Hyperdrive must receive a direct Neon connection, not Neon's pooled endpoint. The pipeline rejects hosts containing `-pooler.` to avoid stacking PgBouncer in front of Hyperdrive.
-
-The Neon URL is used directly by GitHub Actions only for Alembic migrations. The Worker itself receives database credentials through the Hyperdrive binding.
-
-## Worker-generated secrets
-
-On first deployment the workflow generates:
+Stable secrets generated only when absent:
 - `PRODUCT_IDENTITY_SHOPIFY_TOKEN_ENCRYPTION_KEY`;
 - `PRODUCT_IDENTITY_VERIFICATION_TOKEN_SECRET`;
 - `PRODUCT_IDENTITY_PROOF_UPLOAD_SECRET`.
 
-It checks remote Worker secret names first. Once created, these values are omitted from later deployment secret files, and Wrangler preserves remote secrets that are not included. This prevents accidental key rotation and token loss.
+Existing generated values are preserved on future reconciliations.
 
-## Current limitation: proof object storage
+## Frontend API wiring
 
-The existing proof-of-purchase adapter is S3/boto3 based. Boto3 is now a server-only optional dependency and is deliberately not bundled into the Worker.
+AppFactory resolves the existing `product-identity` Cloudflare Pages project and writes its non-secret build variable:
 
-Therefore proof upload/download remains unavailable in the Worker deployment until an R2-native adapter is implemented. The API fails closed with a 503 when object storage is not configured.
+`VITE_API_BASE_URL=https://product-identity-api.<account>.workers.dev`
 
-This does not block Shopify OAuth, webhooks, product sync, serialization, registration, warranty state, registry, or public verification.
+This keeps the frontend and backend deployment relationship reproducible without putting Cloudflare credentials in GitHub.
 
-## From workers.dev to custom domain
+## Database fail-closed rule
 
-The first deployment intentionally uses:
+The Worker is allowed to exist before the PostgreSQL binding is ready, but production database routes are not allowed to fall back to ephemeral SQLite.
 
-`https://product-identity-api.<account-subdomain>.workers.dev`
+When a production Cloudflare Worker has no Hyperdrive/PostgreSQL URL:
+- `/health` reports `status=degraded`;
+- `database_configured=false`;
+- any endpoint that requests a database session returns HTTP 503.
 
-After the integration is proven end-to-end, attach a custom domain such as:
+Once Hyperdrive is bound, `app/core/runtime.py` builds the PostgreSQL SQLAlchemy URL from the binding and the same application becomes database-ready.
+
+Hyperdrive owns pooling; SQLAlchemy uses `NullPool` in Worker runtime to prevent stale connections from crossing Worker request contexts.
+
+## Shopify deployment
+
+After AppFactory returns the real Worker URL and the Worker is reachable, the same workflow renders the existing Shopify production template and runs:
+
+```text
+shopify app deploy --config production --allow-updates
+```
+
+using `SHOPIFY_APP_AUTOMATION_TOKEN`.
+
+Shopify CLI deploys Shopify app configuration. It does not deploy FastAPI.
+
+## Current database step
+
+Cloudflare deployment no longer waits for a repository-level Cloudflare token.
+
+The remaining infrastructure dependency is a Product Identity PostgreSQL origin for Hyperdrive. This must be a Product Identity database/role, not a reused application database from another Trigenys product.
+
+Until that binding exists, the Worker stays explicitly degraded rather than using SQLite.
+
+## Current proof-storage limitation
+
+The existing proof-of-purchase adapter is S3/boto3 based. Boto3 remains a server-only optional dependency and is deliberately not bundled into the Worker.
+
+Proof upload/download therefore stays unavailable on the Worker until an R2-native adapter is implemented. The rest of the Product Identity domain can still be deployed and exercised as its dependencies become available.
+
+## Custom domain later
+
+The first deployment uses the account's `workers.dev` hostname. After end-to-end validation, the Worker can be attached to:
 
 `https://api.identity.trigenys.com`
 
-and rerun the same deployment pipeline with the production URL policy updated.
+without changing the application boundary.
