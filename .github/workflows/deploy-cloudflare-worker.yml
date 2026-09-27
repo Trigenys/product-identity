@@ -1,0 +1,191 @@
+name: Deploy Product Identity Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "shopify.app.production.toml.template"
+      - ".github/scripts/provision_cloudflare.py"
+      - ".github/scripts/render_worker_secrets.py"
+      - ".github/workflows/deploy-cloudflare-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-identity-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+      PRODUCT_IDENTITY_WEB_URL: ${{ vars.PRODUCT_IDENTITY_WEB_URL }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SHOPIFY_CLIENT_ID: ${{ vars.SHOPIFY_CLIENT_ID }}
+      SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+      SHOPIFY_PREVIOUS_CLIENT_SECRET: ${{ secrets.SHOPIFY_PREVIOUS_CLIENT_SECRET }}
+      SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}
+      PRODUCT_IDENTITY_AUTH_JWT_KEY: ${{ secrets.PRODUCT_IDENTITY_AUTH_JWT_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check deployment prerequisites
+        id: preflight
+        shell: bash
+        run: |
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=("CLOUDFLARE_API_TOKEN secret")
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=("CLOUDFLARE_ACCOUNT_ID variable")
+          [[ -n "$NEON_DATABASE_URL" ]] || missing+=("NEON_DATABASE_URL secret")
+          [[ -n "$SHOPIFY_CLIENT_ID" ]] || missing+=("SHOPIFY_CLIENT_ID variable")
+          [[ -n "$SHOPIFY_CLIENT_SECRET" ]] || missing+=("SHOPIFY_CLIENT_SECRET secret")
+          [[ -n "$SHOPIFY_APP_AUTOMATION_TOKEN" ]] || missing+=("SHOPIFY_APP_AUTOMATION_TOKEN secret")
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            printf '::notice::Production deploy skipped. Missing: %s\n' "${missing[*]}"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python
+        if: steps.preflight.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Node.js
+        if: steps.preflight.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deployment toolchain
+        if: steps.preflight.outputs.enabled == 'true'
+        run: |
+          python -m pip install --upgrade pip uv
+          python -m pip install -e "./backend[server]"
+          npm install -g wrangler@latest @shopify/cli@latest
+
+      - name: Normalize migration database URL
+        if: steps.preflight.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          raw = os.environ["NEON_DATABASE_URL"]
+          if raw.startswith("postgres://"):
+              raw = "postgresql+psycopg://" + raw[len("postgres://"):]
+          elif raw.startswith("postgresql://"):
+              raw = "postgresql+psycopg://" + raw[len("postgresql://"):]
+          elif not raw.startswith("postgresql+psycopg://"):
+              raise SystemExit("NEON_DATABASE_URL must be a PostgreSQL URL")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write("PRODUCT_IDENTITY_DATABASE_URL=" + raw + "\n")
+          PY
+
+      - name: Apply database migrations
+        if: steps.preflight.outputs.enabled == 'true'
+        working-directory: backend
+        env:
+          PRODUCT_IDENTITY_ENVIRONMENT: production
+        run: alembic upgrade head
+
+      - name: Provision Hyperdrive and render Worker config
+        if: steps.preflight.outputs.enabled == 'true'
+        id: cloudflare
+        run: python .github/scripts/provision_cloudflare.py
+
+      - name: Inspect existing Worker secret names
+        if: steps.preflight.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set +e
+          wrangler secret list             --name product-identity-api             --format json             > "$RUNNER_TEMP/product-identity-secret-names.json" 2>/dev/null
+          status=$?
+          set -e
+          if [[ $status -ne 0 ]]; then
+            echo '[]' > "$RUNNER_TEMP/product-identity-secret-names.json"
+          fi
+
+      - name: Render Worker secrets
+        if: steps.preflight.outputs.enabled == 'true'
+        run: |
+          python .github/scripts/render_worker_secrets.py             "$RUNNER_TEMP/product-identity-secret-names.json"             "$RUNNER_TEMP/product-identity-worker-secrets.json"
+
+      - name: Deploy Python Worker
+        if: steps.preflight.outputs.enabled == 'true'
+        working-directory: backend
+        run: |
+          uvx --from workers-py pywrangler deploy             --config wrangler.production.toml             --keep-vars             --secrets-file "$RUNNER_TEMP/product-identity-worker-secrets.json"
+
+      - name: Remove rendered secret file
+        if: always() && steps.preflight.outputs.enabled == 'true'
+        run: rm -f "$RUNNER_TEMP/product-identity-worker-secrets.json"
+
+      - name: Verify Worker health
+        if: steps.preflight.outputs.enabled == 'true'
+        env:
+          API_URL: ${{ steps.cloudflare.outputs.api_url }}
+        shell: bash
+        run: |
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error "$API_URL/health" | grep -q '"status":"ok"'; then
+              echo "Worker health check passed at $API_URL"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Worker health check failed at $API_URL"
+          exit 1
+
+      - name: Render Shopify app configuration
+        if: steps.preflight.outputs.enabled == 'true'
+        env:
+          SHOPIFY_APP_URL: ${{ steps.cloudflare.outputs.api_url }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          template = Path("shopify.app.production.toml.template").read_text()
+          api_url = os.environ["SHOPIFY_APP_URL"].rstrip("/")
+          rendered = (
+              template
+              .replace("__SHOPIFY_CLIENT_ID__", os.environ["SHOPIFY_CLIENT_ID"])
+              .replace("__SHOPIFY_APP_URL__", api_url)
+          )
+          Path("shopify.app.production.toml").write_text(rendered)
+          PY
+
+      - name: Deploy Shopify app configuration
+        if: steps.preflight.outputs.enabled == 'true'
+        env:
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+        run: |
+          shopify app deploy             --config production             --allow-updates             --source-control-url "$COMMIT_URL"
+
+      - name: Deployment summary
+        if: steps.preflight.outputs.enabled == 'true'
+        env:
+          API_URL: ${{ steps.cloudflare.outputs.api_url }}
+          WEB_URL: ${{ steps.cloudflare.outputs.web_url }}
+        run: |
+          {
+            echo "## Product Identity deployment"
+            echo
+            echo "- API: $API_URL"
+            echo "- Web: $WEB_URL"
+            echo "- Database: Neon through Cloudflare Hyperdrive"
+            echo "- Shopify configuration: deployed"
+            echo
+            echo "Cloudflare Pages now has VITE_API_BASE_URL configured for subsequent builds."
+          } >> "$GITHUB_STEP_SUMMARY"
