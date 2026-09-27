@@ -582,3 +582,74 @@ def test_customer_compliance_webhook_does_not_persist_customer_payload(
     assert not hasattr(delivery, "payload")
     assert not hasattr(delivery, "customer_email")
     assert "erase-me@example.com" not in delivery.payload_sha256
+
+
+def test_scope_update_marks_installation_reauth_when_required_scope_is_removed(
+    client: TestClient,
+    session: Session,
+    seeded_user: tuple[User, Organization, Organization],
+    token: str,
+) -> None:
+    _, own_org, _ = seeded_user
+    _connect(client, own_org, token)
+
+    response = _post_webhook(
+        client,
+        topic="app/scopes_update",
+        webhook_id="wh-scope-update",
+        payload={"current": ["read_products"]},
+    )
+
+    assert response.status_code == 200
+    installation = session.scalar(
+        select(ShopifyInstallation).where(
+            ShopifyInstallation.organization_id == own_org.id
+        )
+    )
+    assert installation is not None
+    assert installation.status == ShopifyInstallationStatus.REAUTH_REQUIRED
+    assert installation.scopes == "read_products"
+
+
+def test_same_shop_cannot_be_connected_to_two_organizations(
+    client: TestClient,
+    session: Session,
+    seeded_user: tuple[User, Organization, Organization],
+    token: str,
+) -> None:
+    user, own_org, other_org = seeded_user
+    _connect(client, own_org, token)
+
+    from app.models.auth import Membership, MembershipRole
+    session.add(
+        Membership(
+            user_id=user.id,
+            organization_id=other_org.id,
+            role=MembershipRole.OWNER,
+        )
+    )
+    session.commit()
+
+    install = client.get(
+        f"/v1/organizations/{other_org.id}/integrations/shopify/install",
+        params={"shop": SHOP},
+        headers=_auth(token),
+        follow_redirects=False,
+    )
+    assert install.status_code == 307
+
+    state = parse_qs(urlparse(install.headers["location"]).query)["state"][0]
+    params = {
+        "code": "oauth-code-2",
+        "shop": SHOP,
+        "state": state,
+        "timestamp": "1790467201",
+    }
+    params["hmac"] = _callback_hmac(params)
+
+    callback = client.get(
+        "/v1/integrations/shopify/oauth/callback",
+        params=params,
+        follow_redirects=False,
+    )
+    assert callback.status_code == 409
