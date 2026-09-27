@@ -42,7 +42,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: pip
           cache-dependency-path: backend/pyproject.toml
 
@@ -54,3 +54,35 @@ jobs:
 
       - name: Migration smoke test
         run: alembic upgrade head
+
+
+  worker-bundle:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Worker toolchain
+        run: |
+          python -m pip install --upgrade pip uv
+          npm install -g wrangler@latest
+
+      - name: Compile Python Worker without deploying
+        run: |
+          uvx --from workers-py pywrangler deploy \
+            --config wrangler.toml \
+            --dry-run \
+            --outdir ../worker-dist
