@@ -7,10 +7,9 @@ dist
 .env.*
 !.env.example
 
-# Rendered by GitHub Actions from the tracked template
+# Rendered transiently by GitHub Actions from the tracked Shopify template
 shopify.app.production.toml
 
-backend/wrangler.production.toml
 backend/.venv-workers/
 backend/python_modules/
 worker-dist/
