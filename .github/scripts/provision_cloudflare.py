@@ -149,15 +149,16 @@ def discover_worker_url(account_id: str) -> str:
     return f"https://{WORKER_NAME}.{subdomain}.workers.dev"
 
 
-def discover_web_url(account_id: str) -> str:
+def discover_web_url(account_id: str) -> tuple[str, str | None]:
     explicit = os.environ.get("PRODUCT_IDENTITY_WEB_URL", "").strip()
-    if explicit:
-        return explicit.rstrip("/")
-
     project = os.environ.get(
         "CLOUDFLARE_PAGES_PROJECT",
         "product-identity",
     ).strip()
+
+    if explicit:
+        return explicit.rstrip("/"), project or None
+
     try:
         result = cloudflare(
             "GET",
@@ -174,7 +175,43 @@ def discover_web_url(account_id: str) -> str:
         raise ProvisionError(
             f"Pages project '{project}' did not return a subdomain."
         )
-    return f"https://{subdomain}"
+    return f"https://{subdomain}", project
+
+
+def configure_pages_api_url(
+    account_id: str,
+    *,
+    project: str | None,
+    api_url: str,
+) -> None:
+    if not project:
+        return
+
+    encoded = urllib.parse.quote(project, safe="")
+    cloudflare(
+        "PATCH",
+        f"/accounts/{account_id}/pages/projects/{encoded}",
+        body={
+            "deployment_configs": {
+                "production": {
+                    "env_vars": {
+                        "VITE_API_BASE_URL": {
+                            "type": "plain_text",
+                            "value": api_url,
+                        }
+                    }
+                },
+                "preview": {
+                    "env_vars": {
+                        "VITE_API_BASE_URL": {
+                            "type": "plain_text",
+                            "value": api_url,
+                        }
+                    }
+                },
+            }
+        },
+    )
 
 
 def render_config(
@@ -211,7 +248,13 @@ def main() -> int:
 
     hyperdrive_id = ensure_hyperdrive(account_id, origin)
     api_url = discover_worker_url(account_id)
-    web_url = discover_web_url(account_id)
+    web_url, pages_project = discover_web_url(account_id)
+
+    configure_pages_api_url(
+        account_id,
+        project=pages_project,
+        api_url=api_url,
+    )
 
     render_config(
         web_url=web_url,
@@ -223,6 +266,7 @@ def main() -> int:
     github_output("hyperdrive_id", hyperdrive_id)
     github_output("api_url", api_url)
     github_output("web_url", web_url)
+    github_output("pages_project", pages_project or "")
 
     print("Cloudflare production configuration rendered.")
     print(f"Worker URL: {api_url}")
