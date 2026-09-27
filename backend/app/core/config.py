@@ -3,10 +3,18 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.runtime import cloudflare_settings
+
 
 class Settings(BaseSettings):
+    def __init__(self, **values):
+        runtime_values = cloudflare_settings()
+        runtime_values.update(values)
+        super().__init__(**runtime_values)
+
     app_name: str = "Product Identity API"
     environment: str = "development"
+    runtime: str = "server"
     database_url: str = "sqlite:///./product_identity.db"
 
     auth_issuer: str = "https://auth.example.invalid/"
