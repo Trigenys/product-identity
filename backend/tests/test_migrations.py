@@ -26,5 +26,11 @@ def test_migrations_create_fresh_database(tmp_path, monkeypatch) -> None:
         "registration_audits",
         "proofs_of_purchase",
         "authenticity_signals",
+        "shopify_installations",
+        "shopify_oauth_states",
+        "shopify_product_maps",
+        "shopify_order_maps",
+        "shopify_order_line_maps",
+        "shopify_webhook_deliveries",
     }
     assert expected_tables.issubset(set(inspector.get_table_names()))
