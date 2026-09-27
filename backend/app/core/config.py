@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     verification_trust_edge_country: bool = False
     verification_country_header: str = "cf-ipcountry"
 
+    shopify_client_id: str = ""
+    shopify_client_secret: str = Field(default="")
+    shopify_token_encryption_key: str = Field(default="")
+    shopify_api_version: str = "2026-07"
+    shopify_scopes: str = "read_products,read_orders"
+    shopify_oauth_callback_url: str = "http://localhost:8000/v1/integrations/shopify/oauth/callback"
+    shopify_after_install_url: str = "http://localhost:5173/app"
+    shopify_http_timeout_seconds: float = 20.0
+
     model_config = SettingsConfigDict(
         env_prefix="PRODUCT_IDENTITY_",
         env_file=".env",
