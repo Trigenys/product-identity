@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "provider": "cloudflare-workers-builds",
+  "repository": "Trigenys/product-identity",
+  "workerName": "product-identity-api",
+  "rootDirectory": "/backend",
+  "buildCommand": "python -m pip install --user uv && uvx --from workers-py pywrangler deploy --config wrangler.production.toml --dry-run",
+  "deployCommand": "python -m pip install --user uv && uvx --from workers-py pywrangler deploy --config wrangler.production.toml --keep-vars"
+}
