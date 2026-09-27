@@ -7,7 +7,11 @@ from app.models.auth import Organization, User
 def test_health_is_public(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {
+        "status": "ok",
+        "runtime": "server",
+        "database_configured": True,
+    }
 
 
 def test_me_requires_bearer_token(client: TestClient) -> None:

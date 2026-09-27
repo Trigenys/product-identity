@@ -1,5 +1,6 @@
 from collections.abc import Generator
 
+from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
@@ -7,6 +8,15 @@ from sqlalchemy.pool import NullPool
 from app.core.config import get_settings
 
 settings = get_settings()
+
+
+def database_is_configured() -> bool:
+    return not (
+        settings.runtime == "cloudflare-worker"
+        and settings.environment == "production"
+        and settings.database_url.startswith("sqlite")
+    )
+
 
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 engine_kwargs: dict[str, object] = {
@@ -25,6 +35,12 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def get_db_session() -> Generator[Session, None, None]:
+    if not database_is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Production database is not configured",
+        )
+
     session = SessionLocal()
     try:
         yield session
