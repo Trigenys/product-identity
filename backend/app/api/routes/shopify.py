@@ -127,7 +127,7 @@ def install_shopify(
 
 
 @router.get("/v1/integrations/shopify/oauth/callback")
-def shopify_oauth_callback(
+async def shopify_oauth_callback(
     request: Request,
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
@@ -158,7 +158,7 @@ def shopify_oauth_callback(
             shop_domain=normalized_shop,
             state=state_value,
         )
-        token_response = shopify_client.exchange_code(
+        token_response = await shopify_client.exchange_code(
             shop=normalized_shop,
             code=code,
         )
@@ -235,7 +235,7 @@ def shopify_status(
 
 
 @router.post("/v1/organizations/{organization_id}/integrations/shopify/sync")
-def shopify_sync(
+async def shopify_sync(
     organization_id: uuid.UUID,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
@@ -259,7 +259,7 @@ def shopify_sync(
         )
 
     try:
-        mapped = sync_products(
+        mapped = await sync_products(
             session,
             installation=installation,
             client=shopify_client,

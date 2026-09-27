@@ -9,3 +9,8 @@ dist
 
 # Rendered by GitHub Actions from the tracked template
 shopify.app.production.toml
+
+backend/wrangler.production.toml
+backend/.venv-workers/
+backend/python_modules/
+worker-dist/

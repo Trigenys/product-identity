@@ -19,13 +19,20 @@ class ShopifyTokenResponse:
 
 
 class ShopifyAdminClient(Protocol):
-    def exchange_code(self, *, shop: str, code: str) -> ShopifyTokenResponse:
+    async def exchange_code(self, *, shop: str, code: str) -> ShopifyTokenResponse:
         ...
 
-    def refresh_token(self, *, shop: str, refresh_token: str) -> ShopifyTokenResponse:
+    async def refresh_token(self, *, shop: str, refresh_token: str) -> ShopifyTokenResponse:
         ...
 
-    def graphql(self, *, shop: str, access_token: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+    async def graphql(
+        self,
+        *,
+        shop: str,
+        access_token: str,
+        query: str,
+        variables: dict[str, Any],
+    ) -> dict[str, Any]:
         ...
 
 
@@ -63,43 +70,43 @@ class HttpShopifyAdminClient:
             refresh_token_expires_at=now + timedelta(seconds=refresh_expires_in),
         )
 
-    def exchange_code(self, *, shop: str, code: str) -> ShopifyTokenResponse:
+    async def exchange_code(self, *, shop: str, code: str) -> ShopifyTokenResponse:
         try:
-            response = httpx.post(
-                f"https://{shop}/admin/oauth/access_token",
-                data={
-                    "client_id": self._client_id,
-                    "client_secret": self._client_secret,
-                    "code": code,
-                    "expiring": "1",
-                },
-                headers={"Accept": "application/json"},
-                timeout=self._timeout,
-            )
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    f"https://{shop}/admin/oauth/access_token",
+                    data={
+                        "client_id": self._client_id,
+                        "client_secret": self._client_secret,
+                        "code": code,
+                        "expiring": "1",
+                    },
+                    headers={"Accept": "application/json"},
+                )
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise ShopifyTransportError("Shopify OAuth token exchange failed") from exc
         return self._token_response(response.json())
 
-    def refresh_token(self, *, shop: str, refresh_token: str) -> ShopifyTokenResponse:
+    async def refresh_token(self, *, shop: str, refresh_token: str) -> ShopifyTokenResponse:
         try:
-            response = httpx.post(
-                f"https://{shop}/admin/oauth/access_token",
-                data={
-                    "client_id": self._client_id,
-                    "client_secret": self._client_secret,
-                    "grant_type": "refresh_token",
-                    "refresh_token": refresh_token,
-                },
-                headers={"Accept": "application/json"},
-                timeout=self._timeout,
-            )
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    f"https://{shop}/admin/oauth/access_token",
+                    data={
+                        "client_id": self._client_id,
+                        "client_secret": self._client_secret,
+                        "grant_type": "refresh_token",
+                        "refresh_token": refresh_token,
+                    },
+                    headers={"Accept": "application/json"},
+                )
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise ShopifyTransportError("Shopify access token refresh failed") from exc
         return self._token_response(response.json())
 
-    def graphql(
+    async def graphql(
         self,
         *,
         shop: str,
@@ -108,16 +115,16 @@ class HttpShopifyAdminClient:
         variables: dict[str, Any],
     ) -> dict[str, Any]:
         try:
-            response = httpx.post(
-                f"https://{shop}/admin/api/{self._api_version}/graphql.json",
-                json={"query": query, "variables": variables},
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "X-Shopify-Access-Token": access_token,
-                },
-                timeout=self._timeout,
-            )
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    f"https://{shop}/admin/api/{self._api_version}/graphql.json",
+                    json={"query": query, "variables": variables},
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-Shopify-Access-Token": access_token,
+                    },
+                )
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise ShopifyTransportError("Shopify Admin GraphQL request failed") from exc

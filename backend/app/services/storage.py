@@ -1,9 +1,6 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-import boto3
-from botocore.client import Config
-
 
 class ObjectStorageError(Exception):
     pass
@@ -31,6 +28,14 @@ class S3StorageConfig:
 
 class S3PrivateObjectStorage:
     def __init__(self, config: S3StorageConfig) -> None:
+        try:
+            import boto3
+            from botocore.client import Config
+        except ImportError as exc:
+            raise ObjectStorageError(
+                "S3 object storage dependencies are not installed in this runtime"
+            ) from exc
+
         self._bucket = config.bucket
         self._client = boto3.client(
             "s3",

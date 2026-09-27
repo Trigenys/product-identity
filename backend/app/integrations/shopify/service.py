@@ -88,7 +88,7 @@ def store_installation_tokens(
     return installation
 
 
-def access_token_for(
+async def access_token_for(
     session: Session,
     *,
     installation: ShopifyInstallation,
@@ -116,7 +116,7 @@ def access_token_for(
         session.flush()
         raise ShopifyConnectorError("Shopify refresh token expired; reauthorization is required")
 
-    refreshed = client.refresh_token(
+    refreshed = await client.refresh_token(
         shop=installation.shop_domain,
         refresh_token=cipher.decrypt(installation.encrypted_refresh_token),
     )
@@ -183,14 +183,14 @@ def upsert_product_variant_mapping(
     return mapping
 
 
-def sync_products(
+async def sync_products(
     session: Session,
     *,
     installation: ShopifyInstallation,
     client: ShopifyAdminClient,
     cipher: TokenCipher,
 ) -> int:
-    token = access_token_for(
+    token = await access_token_for(
         session,
         installation=installation,
         client=client,
@@ -200,7 +200,7 @@ def sync_products(
     mapped = 0
 
     while True:
-        body = client.graphql(
+        body = await client.graphql(
             shop=installation.shop_domain,
             access_token=token,
             query=PRODUCTS_QUERY,
