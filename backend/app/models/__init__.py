@@ -1,6 +1,16 @@
 from app.models.auth import Membership, MembershipRole, Organization, User
 from app.models.authenticity import AuthenticitySignal, AuthenticitySignalState, AuthenticitySignalType, DeviceClass
 from app.models.proof import ProofOfPurchase, ProofReviewState
+from app.models.shopify import (
+    ShopifyInstallation,
+    ShopifyInstallationStatus,
+    ShopifyOAuthState,
+    ShopifyOrderLineMap,
+    ShopifyOrderMap,
+    ShopifyProductMap,
+    ShopifyWebhookDelivery,
+    ShopifyWebhookStatus,
+)
 from app.models.identity import (
     ImmutableUnitIdentityError,
     Product,
@@ -37,6 +47,14 @@ __all__ = [
     "RegistrationActor",
     "RegistrationAudit",
     "SerializationBatch",
+    "ShopifyInstallation",
+    "ShopifyInstallationStatus",
+    "ShopifyOAuthState",
+    "ShopifyOrderLineMap",
+    "ShopifyOrderMap",
+    "ShopifyProductMap",
+    "ShopifyWebhookDelivery",
+    "ShopifyWebhookStatus",
     "Unit",
     "UnitImport",
     "UnitImportStatus",
