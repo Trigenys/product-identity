@@ -97,15 +97,15 @@ class FakeShopifyAdminClient:
         self.exchange_response = self._token_response("access-initial", "refresh-initial")
         self.refresh_response = self._token_response("access-refreshed", "refresh-refreshed")
 
-    def exchange_code(self, *, shop: str, code: str) -> ShopifyTokenResponse:
+    async def exchange_code(self, *, shop: str, code: str) -> ShopifyTokenResponse:
         self.exchange_calls.append((shop, code))
         return self.exchange_response
 
-    def refresh_token(self, *, shop: str, refresh_token: str) -> ShopifyTokenResponse:
+    async def refresh_token(self, *, shop: str, refresh_token: str) -> ShopifyTokenResponse:
         self.refresh_calls.append((shop, refresh_token))
         return self.refresh_response
 
-    def graphql(
+    async def graphql(
         self,
         *,
         shop: str,
