@@ -6,3 +6,6 @@ dist
 .env
 .env.*
 !.env.example
+
+# Rendered by GitHub Actions from the tracked template
+shopify.app.production.toml

@@ -1,0 +1,40 @@
+client_id = "__SHOPIFY_CLIENT_ID__"
+name = "Product Identity"
+application_url = "__SHOPIFY_APP_URL__"
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = false
+include_config_on_deploy = true
+
+[access_scopes]
+scopes = "read_products,read_orders"
+
+[auth]
+redirect_urls = [
+  "__SHOPIFY_APP_URL__/v1/integrations/shopify/oauth/callback"
+]
+
+[webhooks]
+api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+topics = [
+  "app/uninstalled",
+  "app/scopes_update",
+  "products/create",
+  "products/update",
+  "products/delete",
+  "orders/create",
+  "orders/updated",
+  "orders/cancelled"
+]
+uri = "/v1/integrations/shopify/webhooks"
+
+[[webhooks.subscriptions]]
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+uri = "/v1/integrations/shopify/webhooks"
