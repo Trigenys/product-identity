@@ -1,0 +1,16 @@
+name = "product-identity-api"
+main = "worker.py"
+compatibility_date = "2026-09-27"
+compatibility_flags = ["python_workers"]
+workers_dev = true
+
+[vars]
+PRODUCT_IDENTITY_RUNTIME = "cloudflare-worker"
+PRODUCT_IDENTITY_ENVIRONMENT = "development"
+PRODUCT_IDENTITY_PUBLIC_BASE_URL = "http://localhost:5173"
+PRODUCT_IDENTITY_CORS_ORIGINS = "[\"http://localhost:5173\"]"
+PRODUCT_IDENTITY_SHOPIFY_API_VERSION = "2026-07"
+PRODUCT_IDENTITY_SHOPIFY_SCOPES = "read_products,read_orders"
+
+[python_modules]
+exclude = ["**/*.pyc", "**/__pycache__"]
