@@ -186,6 +186,12 @@ def shopify_oauth_callback(
             cipher=cipher,
         )
         session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This Shopify store is already connected to another organization",
+        ) from exc
     except (ShopifyOAuthError, ShopifyConnectorError, ShopifyTransportError) as exc:
         session.rollback()
         raise HTTPException(
@@ -379,6 +385,28 @@ async def shopify_webhook(
             delivery.status = ShopifyWebhookStatus.PROCESSED
         elif topic == "app/uninstalled":
             uninstall_shop(session, installation=installation)
+            delivery.status = ShopifyWebhookStatus.PROCESSED
+        elif topic == "app/scopes_update":
+            current_scopes = payload.get("current") or []
+            if isinstance(current_scopes, str):
+                current_scopes = [
+                    scope.strip()
+                    for scope in current_scopes.split(",")
+                    if scope.strip()
+                ]
+            normalized_scopes = sorted(
+                str(scope).strip()
+                for scope in current_scopes
+                if str(scope).strip()
+            )
+            installation.scopes = ",".join(normalized_scopes)
+            required_scopes = {
+                scope.strip()
+                for scope in settings.shopify_scopes.split(",")
+                if scope.strip()
+            }
+            if not required_scopes.issubset(set(normalized_scopes)):
+                installation.status = ShopifyInstallationStatus.REAUTH_REQUIRED
             delivery.status = ShopifyWebhookStatus.PROCESSED
         elif topic in {"customers/data_request", "customers/redact"}:
             # Product Identity does not persist Shopify customer records or
