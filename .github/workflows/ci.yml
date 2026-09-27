@@ -86,3 +86,10 @@ jobs:
             --config wrangler.toml \
             --dry-run \
             --outdir ../worker-dist
+
+      - name: Compile production Python Worker without deploying
+        run: |
+          uvx --from workers-py pywrangler deploy \
+            --config wrangler.production.toml \
+            --dry-run \
+            --outdir ../worker-dist-production
