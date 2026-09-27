@@ -38,6 +38,7 @@ class Settings(BaseSettings):
 
     shopify_client_id: str = ""
     shopify_client_secret: str = Field(default="")
+    shopify_previous_client_secret: str = Field(default="")
     shopify_token_encryption_key: str = Field(default="")
     shopify_api_version: str = "2026-07"
     shopify_scopes: str = "read_products,read_orders"
