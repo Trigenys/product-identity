@@ -1,0 +1,11 @@
+name = "product-identity-api"
+main = "worker.py"
+compatibility_date = "2026-09-27"
+compatibility_flags = ["python_workers"]
+workers_dev = true
+
+[observability]
+enabled = true
+
+[python_modules]
+exclude = ["**/*.pyc", "**/__pycache__"]
