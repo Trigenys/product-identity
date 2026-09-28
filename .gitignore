@@ -13,3 +13,7 @@ shopify.app.production.toml
 backend/.venv-workers/
 backend/python_modules/
 worker-dist/
+
+# Local/backend build environments are never deployment artifacts
+backend/.venv/
+backend/pylock.toml
