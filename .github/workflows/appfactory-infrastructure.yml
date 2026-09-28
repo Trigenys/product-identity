@@ -102,6 +102,8 @@ jobs:
               "repository": "Trigenys/product-identity",
               "workerName": "product-identity-api",
               "rootDirectory": "/backend",
+              "buildCommand": "bash scripts/package_worker.sh dry-run wrangler.production.toml ../worker-dist-production",
+              "deployCommand": "bash scripts/package_worker.sh deploy wrangler.production.toml",
               "pagesProject": "product-identity",
               "runtimeSecrets": runtime,
               "generatedSecrets": [
