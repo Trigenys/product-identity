@@ -46,14 +46,17 @@ jobs:
           cache: pip
           cache-dependency-path: backend/pyproject.toml
 
-      - name: Install backend
-        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      - name: Install backend toolchain
+        run: python -m pip install --upgrade pip uv
+
+      - name: Sync backend development environment
+        run: uv sync --group dev
 
       - name: Run backend tests
-        run: pytest
+        run: uv run pytest
 
       - name: Migration smoke test
-        run: alembic upgrade head
+        run: uv run alembic upgrade head
 
 
   worker-bundle:
@@ -80,16 +83,16 @@ jobs:
           python -m pip install --upgrade pip uv
           npm install -g wrangler@latest
 
-      - name: Compile Python Worker without deploying
+      - name: Compile production Worker from runtime-only artifact
         run: |
-          uvx --from workers-py pywrangler deploy \
-            --config wrangler.toml \
-            --dry-run \
-            --outdir ../worker-dist
+          bash scripts/package_worker.sh \
+            dry-run \
+            wrangler.production.toml \
+            ../worker-dist-production 2>&1 | tee "$RUNNER_TEMP/worker-bundle.log"
 
-      - name: Compile production Python Worker without deploying
+      - name: Enforce Worker bundle budget
         run: |
-          uvx --from workers-py pywrangler deploy \
-            --config wrangler.production.toml \
-            --dry-run \
-            --outdir ../worker-dist-production
+          python scripts/check_worker_bundle_size.py \
+            "$RUNNER_TEMP/worker-bundle.log" \
+            --warn-mib 50 \
+            --max-mib 60
