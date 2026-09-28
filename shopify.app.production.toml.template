@@ -5,7 +5,6 @@ embedded = false
 
 [build]
 automatically_update_urls_on_dev = false
-include_config_on_deploy = true
 
 [access_scopes]
 scopes = "read_products,read_orders"
@@ -24,13 +23,13 @@ topics = [
   "app/scopes_update",
   "products/create",
   "products/update",
-  "products/delete",
-  "orders/create",
-  "orders/updated",
-  "orders/cancelled"
+  "products/delete"
 ]
 uri = "/v1/integrations/shopify/webhooks"
 
+# Order webhook topics are intentionally deferred until Shopify grants
+# Protected Customer Data access. The backend handlers remain implemented,
+# tested, and ready to re-enable after approval.
 [[webhooks.subscriptions]]
 compliance_topics = [
   "customers/data_request",
