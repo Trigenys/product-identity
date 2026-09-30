@@ -1,4 +1,4 @@
-from workers import WorkerEntrypoint
+from workers import Response, WorkerEntrypoint
 
 _app = None
 _request_lock = None
@@ -26,7 +26,7 @@ def _install_cloudflare_sync_compat() -> None:
     anyio.to_thread.run_sync = run_sync_inline
 
 
-def _runtime():
+def _runtime(env):
     global _app, _request_lock
 
     if _app is None:
@@ -36,6 +36,13 @@ def _runtime():
         import asyncio
 
         _install_cloudflare_sync_compat()
+
+        # Cloudflare exposes vars, secrets and bindings through WorkerEntrypoint.env.
+        # Bind that explicit request-time environment before importing FastAPI so
+        # cached settings and the SQLAlchemy engine see the Hyperdrive binding.
+        from app.core.runtime import install_worker_env
+
+        install_worker_env(env)
         from app.main import app
 
         _app = app
@@ -46,18 +53,19 @@ def _runtime():
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
-        # The ASGI adapter is runtime-provided and intentionally imported after startup.
-        from workers import Response, asgi
-
         health_request = str(request.url).split("?", 1)[0].endswith("/health")
 
         try:
-            app, request_lock = _runtime()
+            # Cloudflare's ASGI bridge is runtime-provided. The documented
+            # WorkerEntrypoint contract passes the underlying JS Request object.
+            import asgi
+
+            app, request_lock = _runtime(self.env)
 
             # Product Identity currently uses synchronous SQLAlchemy. Serialize
             # synchronous DB access while Hyperdrive owns connection pooling.
             async with request_lock:
-                return await asgi.fetch(app, request, self.env)
+                return await asgi.fetch(app, request.js_object, self.env)
         except Exception as exc:
             # Keep readiness diagnostics machine-readable while runtime
             # compatibility is being hardened. AppFactory rejects
