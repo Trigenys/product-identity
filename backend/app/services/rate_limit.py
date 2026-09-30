@@ -1,7 +1,8 @@
-import threading
+import sys
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Protocol
+from typing import ContextManager, Protocol
 
 
 class RateLimitExceeded(Exception):
@@ -31,7 +32,15 @@ class InMemoryFixedWindowRateLimiter:
         self._limit = limit
         self._window_seconds = window_seconds
         self._windows: dict[str, _Window] = {}
-        self._lock = threading.Lock()
+        if sys.platform == "emscripten":
+            # Cloudflare Python Workers run on Pyodide where threading is
+            # importable but not functional. Worker requests are already
+            # serialized by the entrypoint-level asyncio lock.
+            self._lock: ContextManager[None] = nullcontext()
+        else:
+            import threading
+
+            self._lock = threading.Lock()
 
     def check(self, key: str) -> None:
         now = time.monotonic()
