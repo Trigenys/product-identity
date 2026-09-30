@@ -1,9 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-import jwt
-from jwt import InvalidTokenError
-
 from app.core.config import Settings
 
 
@@ -29,6 +26,15 @@ class JWTVerifier:
     def verify(self, token: str) -> AuthenticatedIdentity:
         if not self._key:
             raise AuthenticationError("JWT verification key is not configured")
+
+        # PyJWT's crypto backend pulls in cryptography. Cloudflare Python Workers
+        # forbid entropy reads during module startup, so load the crypto stack
+        # only when a request actually needs JWT verification.
+        try:
+            import jwt
+            from jwt import InvalidTokenError
+        except ImportError as exc:
+            raise AuthenticationError("JWT runtime dependency is unavailable") from exc
 
         try:
             payload: dict[str, Any] = jwt.decode(
