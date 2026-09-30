@@ -54,6 +54,26 @@ def test_worker_entrypoint_defers_application_imports_until_fetch() -> None:
     assert "from workers import Response, asgi" in source
 
 
+def test_worker_runs_fastapi_sync_callables_inline_on_emscripten() -> None:
+    source = (ROOT / "worker.py").read_text(encoding="utf-8")
+
+    assert 'sys.platform != "emscripten"' in source
+    assert "import anyio.to_thread" in source
+    assert "async def run_sync_inline(" in source
+    assert "anyio.to_thread.run_sync = run_sync_inline" in source
+    assert source.index("_install_cloudflare_sync_compat()") < source.index(
+        "from app.main import app"
+    )
+
+
+def test_worker_health_diagnostics_cover_asgi_request_failures() -> None:
+    source = (ROOT / "worker.py").read_text(encoding="utf-8")
+
+    assert "return await asgi.fetch(app, request, self.env)" in source
+    assert '"runtime_error_type"' in source
+    assert '"runtime_error"' in source
+
+
 def test_rate_limiter_does_not_import_threading_at_worker_startup() -> None:
     imports = _top_level_imports("app/services/rate_limit.py")
     source = (ROOT / "app/services/rate_limit.py").read_text(encoding="utf-8")
