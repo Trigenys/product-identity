@@ -51,7 +51,7 @@ def test_worker_entrypoint_defers_application_imports_until_fetch() -> None:
 
     source = worker_path.read_text(encoding="utf-8")
     assert "from app.main import app" in source
-    assert "from workers import asgi" in source
+    assert "from workers import Response, asgi" in source
 
 
 def test_rate_limiter_does_not_import_threading_at_worker_startup() -> None:
