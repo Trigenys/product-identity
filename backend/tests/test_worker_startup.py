@@ -34,3 +34,21 @@ def test_cloudflare_entropy_patch_toolchain_is_pinned() -> None:
     assert 'workers-py==1.17.5' in package_script
     assert 'workers-runtime-sdk==1.9.1' in package_script
     assert "python_process_pth_files" in production_config
+
+
+def test_worker_entrypoint_defers_application_imports_until_fetch() -> None:
+    worker_path = ROOT / "worker.py"
+    tree = ast.parse(worker_path.read_text(encoding="utf-8"))
+
+    top_level_modules: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            top_level_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            top_level_modules.add(node.module)
+
+    assert top_level_modules == {"workers"}
+
+    source = worker_path.read_text(encoding="utf-8")
+    assert "from app.main import app" in source
+    assert "from workers import asgi" in source

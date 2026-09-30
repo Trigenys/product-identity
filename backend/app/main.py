@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from app.api.routes.authenticity import router as authenticity_router
 from app.api.routes.health import router as health_router
@@ -29,6 +30,13 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS", "PUT"],
     allow_headers=["Accept", "Content-Type", "Authorization", "Idempotency-Key", "X-Proof-Upload-Grant"],
 )
+
+
+@app.get("/", include_in_schema=False)
+async def worker_root() -> RedirectResponse:
+    destination = settings.public_base_url.rstrip("/") + "/app"
+    return RedirectResponse(destination, status_code=307)
+
 
 app.include_router(health_router)
 app.include_router(authenticity_router)
