@@ -51,7 +51,8 @@ def test_worker_entrypoint_defers_application_imports_until_fetch() -> None:
 
     source = worker_path.read_text(encoding="utf-8")
     assert "from app.main import app" in source
-    assert "from workers import Response, asgi" in source
+    assert "import asgi" in source
+    assert "from workers import Response, WorkerEntrypoint" in source
 
 
 def test_worker_runs_fastapi_sync_callables_inline_on_emscripten() -> None:
@@ -66,12 +67,52 @@ def test_worker_runs_fastapi_sync_callables_inline_on_emscripten() -> None:
     )
 
 
+def test_worker_uses_cloudflare_asgi_request_and_env_contract() -> None:
+    source = (ROOT / "worker.py").read_text(encoding="utf-8")
+
+    assert "_runtime(self.env)" in source
+    assert "install_worker_env(env)" in source
+    assert "return await asgi.fetch(app, request.js_object, self.env)" in source
+
+
 def test_worker_health_diagnostics_cover_asgi_request_failures() -> None:
     source = (ROOT / "worker.py").read_text(encoding="utf-8")
 
-    assert "return await asgi.fetch(app, request, self.env)" in source
+    assert "return await asgi.fetch(app, request.js_object, self.env)" in source
     assert '"runtime_error_type"' in source
     assert '"runtime_error"' in source
+
+
+def test_cloudflare_runtime_reads_explicit_worker_entrypoint_env() -> None:
+    from app.core import runtime
+
+    class Hyperdrive:
+        user = "product identity"
+        password = "p@ss/word"
+        host = "hyperdrive.internal"
+        port = "5432"
+        database = "identity db"
+
+    class WorkerEnv:
+        HYPERDRIVE = Hyperdrive()
+        PRODUCT_IDENTITY_ENVIRONMENT = "production"
+        PRODUCT_IDENTITY_PUBLIC_BASE_URL = "https://example.test"
+        PRODUCT_IDENTITY_CORS_ORIGINS = '["https://example.test"]'
+
+    runtime.install_worker_env(WorkerEnv())
+    try:
+        values = runtime.cloudflare_settings()
+    finally:
+        runtime.install_worker_env(None)
+
+    assert values["runtime"] == "cloudflare-worker"
+    assert values["environment"] == "production"
+    assert values["public_base_url"] == "https://example.test"
+    assert values["cors_origins"] == ["https://example.test"]
+    assert values["database_url"] == (
+        "postgresql+psycopg://product%20identity:p%40ss%2Fword"
+        "@hyperdrive.internal:5432/identity%20db?sslmode=disable"
+    )
 
 
 def test_rate_limiter_does_not_import_threading_at_worker_startup() -> None:
