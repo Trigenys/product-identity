@@ -2,12 +2,17 @@ import json
 from urllib.parse import quote
 
 
+_bound_worker_env: object | None = None
+
+
+def install_worker_env(env: object | None) -> None:
+    """Expose the current Worker bindings to request-time application bootstrap."""
+    global _bound_worker_env
+    _bound_worker_env = env
+
+
 def _worker_env():
-    try:
-        from workers import env  # type: ignore
-    except ImportError:
-        return None
-    return env
+    return _bound_worker_env
 
 
 def _value(env, name: str):
