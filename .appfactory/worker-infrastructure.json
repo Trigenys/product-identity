@@ -5,5 +5,8 @@
   "workerName": "product-identity-api",
   "rootDirectory": "/backend",
   "buildCommand": "bash scripts/package_worker.sh dry-run wrangler.production.toml ../worker-dist-production",
-  "deployCommand": "bash scripts/package_worker.sh deploy wrangler.production.toml"
+  "deployCommand": "bash scripts/package_worker.sh deploy wrangler.production.toml",
+  "migrationRecipe": "python-alembic",
+  "migrationProfile": "product-identity-production",
+  "databaseUrlEnv": "PRODUCT_IDENTITY_DATABASE_URL"
 }
