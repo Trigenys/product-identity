@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "provider": "cloudflare-hyperdrive",
+  "repository": "Trigenys/product-identity",
+  "workerName": "product-identity-api",
+  "profile": "product-identity-production",
+  "hyperdriveName": "product-identity-production",
+  "binding": "HYPERDRIVE",
+  "id": "390c9b443f52492d80eda1cd5a3984c8"
+}
