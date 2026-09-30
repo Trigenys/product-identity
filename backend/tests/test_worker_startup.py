@@ -122,3 +122,16 @@ def test_rate_limiter_does_not_import_threading_at_worker_startup() -> None:
     assert "threading" not in imports
     assert 'sys.platform == "emscripten"' in source
     assert "nullcontext()" in source
+
+
+def test_worker_runtime_probe_is_fail_closed_and_non_secret() -> None:
+    source = (ROOT / "worker.py").read_text(encoding="utf-8")
+
+    assert 'probe_prefix = "/_appfactory/runtime-probe/"' in source
+    assert '"status": "degraded"' in source
+    assert '"probe_stage"' in source
+    assert '"probe_ok"' in source
+    assert 'stage in {"db", "db-connect"}' in source
+    assert '"SELECT 1"' in source
+    probe_source = source[source.index("def _runtime_probe"):source.index("class Default")]
+    assert "password" not in probe_source
