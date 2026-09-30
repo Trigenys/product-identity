@@ -52,3 +52,12 @@ def test_worker_entrypoint_defers_application_imports_until_fetch() -> None:
     source = worker_path.read_text(encoding="utf-8")
     assert "from app.main import app" in source
     assert "from workers import asgi" in source
+
+
+def test_rate_limiter_does_not_import_threading_at_worker_startup() -> None:
+    imports = _top_level_imports("app/services/rate_limit.py")
+    source = (ROOT / "app/services/rate_limit.py").read_text(encoding="utf-8")
+
+    assert "threading" not in imports
+    assert 'sys.platform == "emscripten"' in source
+    assert "nullcontext()" in source
