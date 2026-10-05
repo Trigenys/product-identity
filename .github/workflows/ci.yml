@@ -59,26 +59,32 @@ jobs:
           printf ' - %s\n' "${changed[@]}"
 
           for path in "${changed[@]}"; do
-            case "$path" in
-              .github/workflows/ci.yml)
-                frontend=true
-                backend=true
-                worker=true
-                iac=true
-                ;;
+            if [[ "$path" == ".github/workflows/ci.yml" ]]; then
+              frontend=true
+              backend=true
+              worker=true
+              iac=true
+            fi
 
+            case "$path" in
               src/*|index.html|package.json|tsconfig.json|tsconfig.app.json|tsconfig.node.json|vite.config.ts)
                 frontend=true
                 ;;
+            esac
 
-              backend/app/*|backend/alembic/*|backend/pyproject.toml|backend/tests/*|backend/alembic.ini)
+            case "$path" in
+              backend/app/*|backend/alembic/*|backend/pyproject.toml|backend/tests/*|backend/alembic.ini|backend/worker.py)
                 backend=true
                 ;;
+            esac
 
+            case "$path" in
               backend/app/*|backend/worker.py|backend/pyproject.toml|backend/scripts/package_worker.sh|backend/scripts/check_worker_bundle_size.py|backend/wrangler.toml|backend/wrangler.production.toml)
                 worker=true
                 ;;
+            esac
 
+            case "$path" in
               infra/aws/*)
                 iac=true
                 ;;
