@@ -96,3 +96,37 @@ jobs:
             "$RUNNER_TEMP/worker-bundle.log" \
             --warn-mib 50 \
             --max-mib 60
+
+
+  iac:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install CloudFormation linter
+        run: python -m pip install "cfn-lint>=1,<2"
+
+      - name: Validate AWS CloudFormation
+        run: cfn-lint infra/aws/backend-ec2.yaml
+
+      - name: Guard free-tier-first architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          template="infra/aws/backend-ec2.yaml"
+
+          if grep -Eq 'AWS::EC2::NatGateway|AWS::EC2::EIP|AWS::ElasticLoadBalancing|AWS::ElasticLoadBalancingV2|AWS::RDS::|AWS::SecretsManager::' "$template"; then
+            echo "::error::A fixed-cost managed resource was added to the free-tier-first stack."
+            exit 1
+          fi
+
+          if grep -Eq 'FromPort:[[:space:]]*22|ToPort:[[:space:]]*22' "$template"; then
+            echo "::error::SSH must stay closed; use AWS Systems Manager."
+            exit 1
+          fi

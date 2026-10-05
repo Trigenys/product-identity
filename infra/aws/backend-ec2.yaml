@@ -1,0 +1,242 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Product Identity free-tier-first EC2 backend host.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedPattern: '^[a-z0-9-]+$'
+
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    AllowedValues:
+      - t4g.nano
+      - t4g.micro
+      - t4g.small
+      - t4g.medium
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+  RootVolumeSize:
+    Type: Number
+    Default: 8
+    MinValue: 8
+    MaxValue: 32
+
+  RuntimeParameterPrefix:
+    Type: String
+    Default: /product-identity/production
+    AllowedPattern: '^/[A-Za-z0-9_.\/-]+$'
+
+  EnablePublicIpv4:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+Conditions:
+  PublicIpv4Enabled: !Equals [!Ref EnablePublicIpv4, 'true']
+
+Resources:
+  BackendVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub 'product-identity-${Environment}'
+        - Key: Project
+          Value: product-identity
+
+  BackendVpcIpv6CidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref BackendVpc
+      AmazonProvidedIpv6CidrBlock: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BackendVpc
+      InternetGatewayId: !Ref InternetGateway
+
+  BackendSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: BackendVpcIpv6CidrBlock
+    Properties:
+      VpcId: !Ref BackendVpc
+      CidrBlock: 10.42.0.0/27
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      AssignIpv6AddressOnCreation: true
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 0
+          - Fn::Cidr:
+              - Fn::Select:
+                  - 0
+                  - !GetAtt BackendVpc.Ipv6CidrBlocks
+              - 256
+              - 64
+      Tags:
+        - Key: Name
+          Value: !Sub 'product-identity-${Environment}-backend'
+
+  BackendRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BackendVpc
+
+  BackendIpv4DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref BackendRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  BackendIpv6DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref BackendRouteTable
+      DestinationIpv6CidrBlock: '::/0'
+      GatewayId: !Ref InternetGateway
+
+  BackendSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BackendSubnet
+      RouteTableId: !Ref BackendRouteTable
+
+  BackendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Product Identity backend; no inbound ports.
+      VpcId: !Ref BackendVpc
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: '-1'
+          CidrIpv6: '::/0'
+      Tags:
+        - Key: Name
+          Value: !Sub 'product-identity-${Environment}-backend'
+
+  BackendInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Policies:
+        - PolicyName: RuntimeParameters
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RuntimeParameterPrefix}/*'
+
+  BackendInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BackendInstanceRole
+
+  BackendInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - BackendIpv4DefaultRoute
+      - BackendIpv6DefaultRoute
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref BackendInstanceProfile
+      CreditSpecification:
+        CPUCredits: standard
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      Monitoring: false
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: !If [PublicIpv4Enabled, true, false]
+          DeleteOnTermination: true
+          GroupSet:
+            - !Ref BackendSecurityGroup
+          Ipv6AddressCount: 1
+          SubnetId: !Ref BackendSubnet
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: !Sub 'product-identity-${Environment}-api'
+        - Key: Project
+          Value: product-identity
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker awscli2
+          systemctl enable --now docker
+          systemctl enable --now amazon-ssm-agent
+          mkdir -p /opt/product-identity /etc/product-identity
+          chmod 0755 /opt/product-identity
+          chmod 0750 /etc/product-identity
+          cat >/etc/product-identity/host.env <<'EOF'
+          PRODUCT_IDENTITY_ENVIRONMENT=${Environment}
+          PRODUCT_IDENTITY_RUNTIME=server
+          PRODUCT_IDENTITY_PARAMETER_PREFIX=${RuntimeParameterPrefix}
+          EOF
+          chmod 0640 /etc/product-identity/host.env
+
+Outputs:
+  InstanceId:
+    Value: !Ref BackendInstance
+  PrivateIpv4:
+    Value: !GetAtt BackendInstance.PrivateIp
+  PublicIpv4:
+    Condition: PublicIpv4Enabled
+    Value: !GetAtt BackendInstance.PublicIp
+  VpcId:
+    Value: !Ref BackendVpc
+  SubnetId:
+    Value: !Ref BackendSubnet
+  SecurityGroupId:
+    Value: !Ref BackendSecurityGroup
+  RuntimeParameterPrefix:
+    Value: !Ref RuntimeParameterPrefix
+  SsmStartSessionCommand:
+    Value: !Sub 'aws ssm start-session --target ${BackendInstance} --region ${AWS::Region}'
