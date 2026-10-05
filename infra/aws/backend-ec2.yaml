@@ -46,7 +46,6 @@ Resources:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.42.0.0/24
-      AmazonProvidedIpv6CidrBlock: true
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
@@ -54,6 +53,12 @@ Resources:
           Value: !Sub 'product-identity-${Environment}'
         - Key: Project
           Value: product-identity
+
+  BackendVpcIpv6CidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref BackendVpc
+      AmazonProvidedIpv6CidrBlock: true
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -66,6 +71,7 @@ Resources:
 
   BackendSubnet:
     Type: AWS::EC2::Subnet
+    DependsOn: BackendVpcIpv6CidrBlock
     Properties:
       VpcId: !Ref BackendVpc
       CidrBlock: 10.42.0.0/27
