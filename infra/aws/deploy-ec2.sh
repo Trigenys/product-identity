@@ -126,8 +126,7 @@ PY
 done
 
 if [[ "$ready" != "true" ]]; then
-  echo "Product Identity readiness failed." >&2
-  docker logs --tail 100 "$CONTAINER_NAME" >&2 || true
+  echo "Product Identity readiness failed. Container logs remain on the EC2 host." >&2
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
   if [[ -n "$previous_image" && "$previous_image" != "$IMAGE_URI" ]]; then
