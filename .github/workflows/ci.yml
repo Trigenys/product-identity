@@ -10,7 +10,97 @@ permissions:
   contents: read
 
 jobs:
+  impact:
+    name: impact
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.impact.outputs.frontend }}
+      backend: ${{ steps.impact.outputs.backend }}
+      worker: ${{ steps.impact.outputs.worker }}
+      iac: ${{ steps.impact.outputs.iac }}
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect impacted surfaces
+        id: impact
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          frontend=false
+          backend=false
+          worker=false
+          iac=false
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+            head="$PR_HEAD_SHA"
+          else
+            base="$PUSH_BASE_SHA"
+            head="$CURRENT_SHA"
+          fi
+
+          if [[ -z "${base:-}" || "$base" =~ ^0+$ ]]; then
+            mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r "$head")
+          else
+            mapfile -t changed < <(git diff --name-only "$base" "$head")
+          fi
+
+          printf 'Changed files:\n'
+          printf ' - %s\n' "${changed[@]}"
+
+          for path in "${changed[@]}"; do
+            if [[ "$path" == ".github/workflows/ci.yml" ]]; then
+              frontend=true
+              backend=true
+              worker=true
+              iac=true
+            fi
+
+            case "$path" in
+              src/*|index.html|package.json|tsconfig.json|tsconfig.app.json|tsconfig.node.json|vite.config.ts)
+                frontend=true
+                ;;
+            esac
+
+            case "$path" in
+              backend/app/*|backend/alembic/*|backend/pyproject.toml|backend/tests/*|backend/alembic.ini|backend/worker.py)
+                backend=true
+                ;;
+            esac
+
+            case "$path" in
+              backend/app/*|backend/worker.py|backend/pyproject.toml|backend/scripts/package_worker.sh|backend/scripts/check_worker_bundle_size.py|backend/wrangler.toml|backend/wrangler.production.toml)
+                worker=true
+                ;;
+            esac
+
+            case "$path" in
+              infra/aws/*)
+                iac=true
+                ;;
+            esac
+          done
+
+          {
+            echo "frontend=$frontend"
+            echo "backend=$backend"
+            echo "worker=$worker"
+            echo "iac=$iac"
+          } | tee -a "$GITHUB_OUTPUT"
+
   frontend:
+    needs: impact
+    if: needs.impact.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,6 +121,8 @@ jobs:
         run: npm run build
 
   backend:
+    needs: impact
+    if: needs.impact.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -58,8 +150,9 @@ jobs:
       - name: Migration smoke test
         run: uv run alembic upgrade head
 
-
   worker-bundle:
+    needs: impact
+    if: needs.impact.outputs.worker == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -97,8 +190,9 @@ jobs:
             --warn-mib 50 \
             --max-mib 60
 
-
   iac:
+    needs: impact
+    if: needs.impact.outputs.iac == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
