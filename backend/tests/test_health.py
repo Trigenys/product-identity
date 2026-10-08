@@ -13,6 +13,14 @@ def test_health_is_ok_in_normal_test_runtime(client: TestClient) -> None:
     assert response.json()["database_configured"] is True
 
 
+def test_ready_proves_database_connectivity(client: TestClient) -> None:
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["database_configured"] is True
+
+
 def test_production_worker_without_postgres_is_explicitly_degraded(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
