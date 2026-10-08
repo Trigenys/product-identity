@@ -208,21 +208,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build ARM64 production image
+      - name: Build production container
         run: |
-          docker buildx build \
-            --platform linux/arm64 \
+          docker build \
             --file backend/Dockerfile \
             --tag product-identity-api:ci \
-            --load \
             backend
 
   iac:
