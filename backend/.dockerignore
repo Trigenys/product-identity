@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite
+.env
+.venv/
+.pytest_cache/
+.ruff_cache/
+worker-dist*/
+tests/
+scripts/
+wrangler*.toml

@@ -1,0 +1,242 @@
+name: AWS Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "infra/aws/backend-ec2.yaml"
+      - "infra/aws/deploy-ec2.sh"
+      - ".github/workflows/aws-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: product-identity-aws-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.PRODUCT_IDENTITY_AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: product-identity-production
+  ECR_PUBLIC_REPOSITORY: product-identity-api
+  RUNTIME_PARAMETER_PREFIX: /product-identity/production
+
+jobs:
+  bootstrap-required:
+    if: vars.PRODUCT_IDENTITY_AWS_DEPLOY_ROLE_ARN == ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain one-time AWS bootstrap
+        run: |
+          {
+            echo "## AWS bootstrap required"
+            echo
+            echo "The repository does not have PRODUCT_IDENTITY_AWS_DEPLOY_ROLE_ARN yet."
+            echo "Deploy infra/aws/github-oidc-bootstrap.yaml once in the AWS account,"
+            echo "then store its DeployRoleArn output as that GitHub repository variable."
+            echo
+            echo "No AWS resource was created by this workflow run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && vars.PRODUCT_IDENTITY_AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_ROLE_ARN: ${{ vars.PRODUCT_IDENTITY_AWS_DEPLOY_ROLE_ARN }}
+      ENABLE_PUBLIC_IPV4: ${{ vars.PRODUCT_IDENTITY_AWS_ENABLE_PUBLIC_IPV4 || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: product-identity-${{ github.run_id }}
+
+      - name: Resolve AWS account and execution role
+        id: aws
+        shell: bash
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          execution_role="arn:aws:iam::$account_id:role/product-identity-cloudformation-execution"
+          echo "account_id=$account_id" >> "$GITHUB_OUTPUT"
+          echo "execution_role=$execution_role" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure ECR Public repository
+        id: ecr
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          repository_uri="$(
+            aws ecr-public describe-repositories               --region us-east-1               --repository-names "$ECR_PUBLIC_REPOSITORY"               --query 'repositories[0].repositoryUri'               --output text 2>/dev/null || true
+          )"
+
+          if [[ -z "$repository_uri" || "$repository_uri" == "None" ]]; then
+            repository_uri="$(
+              aws ecr-public create-repository                 --region us-east-1                 --repository-name "$ECR_PUBLIC_REPOSITORY"                 --query 'repository.repositoryUri'                 --output text
+            )"
+          fi
+
+          if [[ -z "$repository_uri" || "$repository_uri" == "None" ]]; then
+            echo "::error::Could not resolve the ECR Public repository URI."
+            exit 1
+          fi
+
+          echo "repository_uri=$repository_uri" >> "$GITHUB_OUTPUT"
+          echo "push_image_uri=$repository_uri:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+          # ecr-public.aws.com is the dual-stack Docker endpoint used by the
+          # IPv6-first EC2 host. GitHub pushes through the standard public URI.
+          pull_repository_uri="${repository_uri/public.ecr.aws/ecr-public.aws.com}"
+          echo "pull_image_uri=$pull_repository_uri:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Login to ECR Public
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecr-public get-login-password --region us-east-1             | docker login --username AWS --password-stdin public.ecr.aws
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and publish ARM64 API image
+        env:
+          REPOSITORY_URI: ${{ steps.ecr.outputs.repository_uri }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build             --platform linux/arm64             --file backend/Dockerfile             --tag "$REPOSITORY_URI:$GITHUB_SHA"             --tag "$REPOSITORY_URI:latest"             --push             backend
+
+      - name: Deploy EC2 infrastructure through CloudFormation
+        env:
+          EXECUTION_ROLE_ARN: ${{ steps.aws.outputs.execution_role }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation deploy             --region "$AWS_REGION"             --stack-name "$STACK_NAME"             --template-file infra/aws/backend-ec2.yaml             --role-arn "$EXECUTION_ROLE_ARN"             --capabilities CAPABILITY_IAM             --no-fail-on-empty-changeset             --parameter-overrides               Environment=production               RuntimeParameterPrefix="$RUNTIME_PARAMETER_PREFIX"               EnablePublicIpv4="$ENABLE_PUBLIC_IPV4"
+
+      - name: Resolve EC2 instance
+        id: instance
+        shell: bash
+        run: |
+          set -euo pipefail
+          instance_id="$(
+            aws cloudformation describe-stacks               --region "$AWS_REGION"               --stack-name "$STACK_NAME"               --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue | [0]"               --output text
+          )"
+
+          if [[ -z "$instance_id" || "$instance_id" == "None" ]]; then
+            echo "::error::CloudFormation did not return an InstanceId."
+            exit 1
+          fi
+
+          echo "instance_id=$instance_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for SSM
+        env:
+          INSTANCE_ID: ${{ steps.instance.outputs.instance_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            ping_status="$(
+              aws ssm describe-instance-information                 --region "$AWS_REGION"                 --filters "Key=InstanceIds,Values=$INSTANCE_ID"                 --query 'InstanceInformationList[0].PingStatus'                 --output text 2>/dev/null || true
+            )"
+            if [[ "$ping_status" == "Online" ]]; then
+              echo "SSM is online for $INSTANCE_ID."
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "::error::EC2 did not become SSM-online within 10 minutes."
+          exit 1
+
+      - name: Deploy API through SSM
+        id: deploy
+        env:
+          INSTANCE_ID: ${{ steps.instance.outputs.instance_id }}
+          IMAGE_URI: ${{ steps.ecr.outputs.pull_image_uri }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          script_b64="$(base64 -w0 infra/aws/deploy-ec2.sh)"
+          parameters="$(
+            jq -cn               --arg script "$script_b64"               --arg image "$IMAGE_URI"               --arg region "$AWS_REGION"               --arg prefix "$RUNTIME_PARAMETER_PREFIX"               '{
+                commands: [
+                  ("printf %s " + ($script|@sh) + " | base64 -d > /tmp/product-identity-deploy.sh"),
+                  "chmod 0700 /tmp/product-identity-deploy.sh",
+                  ("/tmp/product-identity-deploy.sh " + ($image|@sh) + " " + ($region|@sh) + " " + ($prefix|@sh))
+                ]
+              }'
+          )"
+
+          command_id="$(
+            aws ssm send-command               --region "$AWS_REGION"               --instance-ids "$INSTANCE_ID"               --document-name AWS-RunShellScript               --comment "Product Identity $GITHUB_SHA"               --parameters "$parameters"               --query 'Command.CommandId'               --output text
+          )"
+
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+
+          terminal=false
+          for attempt in $(seq 1 120); do
+            status="$(
+              aws ssm get-command-invocation                 --region "$AWS_REGION"                 --command-id "$command_id"                 --instance-id "$INSTANCE_ID"                 --query Status                 --output text 2>/dev/null || true
+            )"
+
+            case "$status" in
+              Success)
+                terminal=true
+                break
+                ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                echo "::error::SSM deployment finished with status $status."
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+
+          if [[ "$terminal" != "true" ]]; then
+            echo "::error::SSM deployment did not finish within 10 minutes."
+            exit 1
+          fi
+
+      - name: Record release evidence
+        env:
+          INSTANCE_ID: ${{ steps.instance.outputs.instance_id }}
+          COMMAND_ID: ${{ steps.deploy.outputs.command_id }}
+          IMAGE_URI: ${{ steps.ecr.outputs.pull_image_uri }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(
+            aws ssm get-command-invocation               --region "$AWS_REGION"               --command-id "$COMMAND_ID"               --instance-id "$INSTANCE_ID"               --query Status               --output text
+          )"
+
+          {
+            echo "## Product Identity AWS release"
+            echo
+            echo "- Stack: $STACK_NAME"
+            echo "- Region: $AWS_REGION"
+            echo "- Instance: $INSTANCE_ID"
+            echo "- Runtime: EC2 / Docker / FastAPI"
+            echo "- Image: $IMAGE_URI"
+            echo "- SSM deployment: $status"
+            echo "- Database gate: /ready executes SELECT 1"
+            echo "- Public IPv4 enabled: $ENABLE_PUBLIC_IPV4"
+            echo "- Long-lived AWS credentials: none"
+          } >> "$GITHUB_STEP_SUMMARY"

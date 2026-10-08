@@ -12,8 +12,7 @@ settings = get_settings()
 
 def database_is_configured() -> bool:
     return not (
-        settings.runtime == "cloudflare-worker"
-        and settings.environment == "production"
+        settings.environment == "production"
         and settings.database_url.startswith("sqlite")
     )
 

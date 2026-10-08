@@ -17,6 +17,7 @@ jobs:
       frontend: ${{ steps.impact.outputs.frontend }}
       backend: ${{ steps.impact.outputs.backend }}
       worker: ${{ steps.impact.outputs.worker }}
+      container: ${{ steps.impact.outputs.container }}
       iac: ${{ steps.impact.outputs.iac }}
     steps:
       - name: Checkout full history
@@ -39,6 +40,7 @@ jobs:
           frontend=false
           backend=false
           worker=false
+          container=false
           iac=false
 
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
@@ -63,6 +65,7 @@ jobs:
               frontend=true
               backend=true
               worker=true
+              container=true
               iac=true
             fi
 
@@ -85,7 +88,13 @@ jobs:
             esac
 
             case "$path" in
-              infra/aws/*)
+              backend/app/*|backend/alembic/*|backend/pyproject.toml|backend/alembic.ini|backend/Dockerfile|backend/.dockerignore)
+                container=true
+                ;;
+            esac
+
+            case "$path" in
+              infra/aws/*|.github/workflows/aws-deploy.yml)
                 iac=true
                 ;;
             esac
@@ -95,6 +104,7 @@ jobs:
             echo "frontend=$frontend"
             echo "backend=$backend"
             echo "worker=$worker"
+            echo "container=$container"
             echo "iac=$iac"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -190,6 +200,21 @@ jobs:
             --warn-mib 50 \
             --max-mib 60
 
+  container:
+    needs: impact
+    if: needs.impact.outputs.container == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build production container
+        run: |
+          docker build \
+            --file backend/Dockerfile \
+            --tag product-identity-api:ci \
+            backend
+
   iac:
     needs: impact
     if: needs.impact.outputs.iac == 'true'
@@ -207,7 +232,10 @@ jobs:
         run: python -m pip install "cfn-lint>=1,<2"
 
       - name: Validate AWS CloudFormation
-        run: cfn-lint infra/aws/backend-ec2.yaml
+        run: cfn-lint infra/aws/*.yaml
+
+      - name: Validate host deployment script
+        run: bash -n infra/aws/deploy-ec2.sh
 
       - name: Guard free-tier-first architecture
         shell: bash
