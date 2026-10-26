@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "name": "Product Identity",
+  "stage": "design",
+  "tagline": "Issuer-backed records for individual product units across physical and commercial journeys.",
+  "problem": "A SKU identifies a product model rather than an individual item, leaving brands without a reliable record of unit registration, sale and warranty events across sales channels.",
+  "scenario": "A brand assigns a unique product-unit record and verification credential, then a customer can query issuer-supplied records without receiving sensitive purchaser information.",
+  "differentiation": "The planned approach keeps issuance, tenant membership, public verification and warranty data as separate boundaries, so a printed QR identifier never substitutes for trusted physical assurance.",
+  "architecture": "Channel adapter or CSV -> authenticated organization-scoped API -> serial and unit model -> database -> public verification portal with privacy-limited responses.",
+  "limitations": "This is pre-MVP design and market validation. A copied QR label does not authenticate a physical object, and customer adoption, external integrations and final warranty workflows remain unverified.",
+  "capabilities": [
+    {
+      "name": "Scoped API foundation",
+      "status": "shipped",
+      "description": "Backend API documents bearer authentication and organization-level membership boundaries.",
+      "evidence": "backend/README.md"
+    },
+    {
+      "name": "Unit verification flow",
+      "status": "in-development",
+      "description": "Plan independent issuer-backed serialization and verification events."
+    },
+    {
+      "name": "Warranty registration",
+      "status": "planned",
+      "description": "Develop evidence-linked registration and warranty status over time."
+    }
+  ],
+  "roadmap": [
+    {
+      "name": "Validate brand workflows",
+      "exitCriteria": "Obtain documented manufacturer interviews and credible pilot partners."
+    },
+    {
+      "name": "Verify unit evidence",
+      "exitCriteria": "Demonstrate a privacy-limited scan flow on issued test credentials."
+    }
+  ],
+  "references": [
+    {
+      "name": "AppFactory README contract",
+      "url": "https://github.com/Trigenys/appfactory/blob/main/docs/product-readme-contract.md",
+      "relevance": "Reusable product documentation assurance across repositories."
+    }
+  ],
+  "requiredHeadings": [
+    "Why Product Identity",
+    "What a QR scan can prove",
+    "Maturity and milestones",
+    "Problem",
+    "Planned architecture",
+    "Validation gates"
+  ],
+  "requiredTerms": [
+    "design",
+    "QR",
+    "serial",
+    "warranty",
+    "ownership",
+    "API"
+  ],
+  "requiredFiles": [
+    "backend/README.md",
+    "docs/DOMAIN_MODEL.md",
+    "docs/market/VALIDATION_AND_GTM.md",
+    "docs/architecture/ARCHITECTURE.md"
+  ],
+  "presentation": {
+    "variant": "centered",
+    "headline": "A serial number is not proof. A trusted record can be.",
+    "summary": "Issuer-backed product-unit identities for authenticity signals, ownership registration and warranty workflows, designed to stay consistent across sales channels.",
+    "badges": [
+      {
+        "label": "Stage",
+        "value": "Design",
+        "color": "orange",
+        "href": "#maturity-and-milestones"
+      },
+      {
+        "label": "Identity",
+        "value": "Unit-first",
+        "color": "263238",
+        "href": "#why-product-identity"
+      },
+      {
+        "label": "Validation",
+        "value": "Issuer backed",
+        "color": "0969da",
+        "href": "#what-a-qr-scan-can-prove"
+      }
+    ],
+    "navigation": [
+      {
+        "label": "Why",
+        "href": "#why-product-identity"
+      },
+      {
+        "label": "QR trust",
+        "href": "#what-a-qr-scan-can-prove"
+      },
+      {
+        "label": "Progress",
+        "href": "#maturity-and-milestones"
+      },
+      {
+        "label": "Problem",
+        "href": "#problem"
+      },
+      {
+        "label": "Model",
+        "href": "#planned-architecture"
+      },
+      {
+        "label": "Validation",
+        "href": "#validation-gates"
+      }
+    ]
+  }
+}
