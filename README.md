@@ -151,7 +151,7 @@ Plans should ultimately be driven by serialized unit volume, registrations and t
 
 ## Repository
 
-Private during validation and product formation. Public-facing marketing, App Store listing and documentation are separate deliverables governed by the Growth backlog.
+This repository is **publicly visible during validation and product formation**. Public source visibility is not evidence of a released product or a grant of reuse rights; check the repository's license and applicable permissions before redistribution. Marketing and external product listings remain separate Growth deliverables.
 
 ---
 
