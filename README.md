@@ -1,4 +1,36 @@
+<!-- appfactory:hero:start -->
+<div align="center">
+
 # Product Identity
+
+### A serial number is not proof. A trusted record can be.
+
+**Issuer-backed product-unit identities for authenticity signals, ownership registration and warranty workflows, designed to stay consistent across sales channels.**
+
+[![Stage: Design](https://img.shields.io/badge/Stage-Design-orange)](#maturity-and-milestones)
+[![Identity: Unit-first](https://img.shields.io/badge/Identity-Unit--first-263238)](#why-product-identity)
+[![Validation: Issuer backed](https://img.shields.io/badge/Validation-Issuer%20backed-0969da)](#what-a-qr-scan-can-prove)
+
+[**Why**](#why-product-identity) · [**QR trust**](#what-a-qr-scan-can-prove) · [**Progress**](#maturity-and-milestones) · [**Problem**](#problem) · [**Model**](#planned-architecture) · [**Validation**](#validation-gates)
+
+</div>
+
+---
+<!-- appfactory:hero:end -->
+
+## Why Product Identity
+
+An order ID or SKU cannot answer whether **this exact unit** was registered, when it was sold or which warranty claims apply. The system is designed around product-unit records and issuer-backed verification, independently of the Shopify, CSV or other channels that may introduce them.
+
+## What a QR scan can prove
+
+A QR code is a lookup and claim presentation mechanism. It can return recorded provenance and raise suspicious verification signals, but **a copied code on a counterfeit object is still a copied code**. Stronger authenticity needs trusted issuance, tamper-resistant physical controls and risk analysis. Public verification must not expose the owner's private identity or purchase details.
+
+## Maturity and milestones
+
+**Design / pre-MVP.** Backend membership/authentication groundwork is present ([evidence](backend/README.md)); completed serialized-unit enrollment, physical anti-counterfeit enforcement, ownership transfers or partner adoption must not be inferred from the roadmap.
+
+Near-term gates are merchant interviews, a verifiable serial-to-registration test journey and explicit buyer privacy. See [domain model](docs/DOMAIN_MODEL.md), [MVP and GTM](docs/market/VALIDATION_AND_GTM.md).
 
 **Digital identity for every physical product unit.**
 
